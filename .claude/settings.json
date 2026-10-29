@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git ls-remote https://github.com/chlebdadamian/3dk-przetargi.git)",
+      "PowerShell(foreach \\($u in 'https://ezamowienia.gov.pl/mo-board/api/v1/notice?NoticeType=ContractNotice&PageSize=1','https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/','https://3dkprojekt.pl/'\\) { try { $r = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 20; \"$u -> $\\($r.StatusCode\\) len=$\\($r.Content.Length\\)\" } catch { \"$u -> ERR $\\($_.Exception.Message\\)\" } })",
+      "PowerShell(git init -b main)",
+      "PowerShell(git remote add origin https://github.com/chlebdadamian/3dk-przetargi.git)",
+      "PowerShell(python -m przetargi fetch --days 14)",
+      "Bash(python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "PowerShell(python -m przetargi fetch --days 30 --history)",
+      "Edit(/.claude/skills/przetargi/**)",
+      "Bash(PYTHONIOENCODING=utf-8 python -)",
+      "PowerShell(python -m przetargi fetch --days 30 --history --wait 20)",
+      "WebSearch",
+      "PowerShell(python -m przetargi jev)",
+      "PowerShell(python -m przetargi report)",
+      "PowerShell(python -m przetargi review 00491095 moze \"Nowy Targ, magazyn + budynek administracyjny, wielobranżowa, 12 mies. Bariera: firma musi mieć dokumentację budynku kubaturowego za min. 200 tys. zł z ostatnich 3 lat; osoby: architekt bez ograniczeń z 2 projektami budynków w 3 lata \\(domy prywatne się liczą\\) + konstruktor, sanitarny, elektryk z tym samym. Bez wadium. Realne tylko jeśli biuro ma takie zlecenie albo z partnerem \\(art. 118 Pzp\\).\")",
+      "PowerShell(python -m przetargi review 00498883 moze \"Wawel, dokumentacja projektowo-konserwatorska remontu bram, 220 dni, wadium 3 tys. zł. Brak wymogu doświadczenia firmy, tylko zespół 7 osób: 2 architektów bez ograniczeń \\(projektant + sprawdzający\\), 2 konstruktorów, sanitarny, elektryk i autor programu prac konserwatorskich \\(art. 37a\\). Potencjał kadrowy 45%. Bez zespołu z konserwatorem: nie.\")",
+      "PowerShell(python -m przetargi review 00501996 moze \"Szczekociny \\(śląskie, ok. 80 km\\), rozbudowa i termomodernizacja urzędu, tylko cena. Warunek: 1 dokumentacja projektowo-kosztorysowa obiektu min. 2000 m3 w 5 lat \\(prywatny się liczy\\). Ale branżę konstrukcyjną wykonawca musi zrobić osobiście, więc podwykonawca odpada, potrzebne konsorcjum. Termin ofert 3.11, bardzo krótko.\")",
+      "PowerShell(python -m przetargi review 00510207 moze \"Rybnik, renowacja elewacji zabytkowej kamienicy \\(gminna ewidencja\\), 180 dni, bez wadium. Warunek: główny projektant z min. 1 projektem renowacji elewacji budynku z ewidencji/rejestru zabytków w 10 lat; doświadczenie 50% oceny. Specjalność biura, ale daleko \\(ok. 120 km\\); tak, jeśli Daniel ma taki projekt.\")",
+      "PowerShell(python -m przetargi review 00501941 nie \"Sandomierz: tylko nadzór autorski nad cudzym projektem muzeum, 30 mies., zespół wielobranżowy z uprawnieniami bez ograniczeń. Nie nasz projekt i za daleko.\")",
+      "PowerShell(python -m przetargi review 00510207 nie \"Rybnik: wymagany główny projektant z projektem renowacji elewacji obiektu z ewidencji/rejestru zabytków - biuro nie ma takiego projektu.\")",
+      "PowerShell(python -m przetargi review 00491095 nie \"Nowy Targ: wymagana usługa \\(dokumentacja budynku\\) za min. 200 tys. zł - największe zlecenie biura ok. 90 tys. zł. Możliwe tylko na zasobach partnera \\(art. 118\\), który realnie wykona część prac.\")",
+      "PowerShell(python -m przetargi review 00498883 moze \"Wawel: główny projektant OK \\(Daniel, bez ograniczeń\\), brak wymogu doświadczenia firmy. Trzeba skompletować: 2. architekta-sprawdzającego, konstruktora + sprawdzającego, sanitarnego, elektryka i autora programu prac konserwatorskich \\(art. 37a\\). Wadium 3 tys. zł. Ryzyko: brak doświadczenia przy zabytkach przy potencjale kadrowym 45%.\")",
+      "PowerShell(python -m przetargi review 00501996 moze \"Szczekociny: warunek 1 dokumentacja obiektu min. 2000 m3 \\(prywatny się liczy - sprawdzić kubaturę największego domu\\), kosztorys zleca się bez problemu. Konstrukcję trzeba wykonać osobiście, więc konsorcjum z konstruktorem. Tylko cena. Termin 03.11 - bardzo mało czasu.\")",
+      "PowerShell(python -c \"import sqlite3; c=sqlite3.connect\\('data/przetargi.db'\\); print\\('usunięto ocen Jev:', c.execute\\('delete from jev'\\).rowcount\\); c.commit\\(\\)\")",
+      "PowerShell(python -m przetargi review 00498883 nie \"Wawel: biuro rezygnuje - zespół 7 osób z konserwatorem \\(art. 37a\\), brak doświadczenia przy zabytkach.\")",
+      "PowerShell(git add -A)",
+      "PowerShell(git push -u origin main)"
+    ]
+  }
+}

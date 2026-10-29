@@ -1,0 +1,110 @@
+# Konfiguracja filtra przetargów dla 3DK Projekt (Kraków / Nowy Sącz).
+
+[fetch]
+# Ile dni wstecz pobierać przy każdym uruchomieniu.
+days_back = 3
+# Ile dni historii ogłoszeń o wyniku trzymać do porównań cen.
+history_days = 365
+# Przerwa między zapytaniami (s). WAF e-Zamówień blokuje IP po zbyt wielu szybkich zapytaniach.
+request_delay = 5
+
+# Kody CPV, o które pytamy API BZP (filtr po stronie serwera, dokładny kod).
+cpv_codes = [
+  "71000000-8", # usługi architektoniczne, budowlane, inżynieryjne i kontrolne
+  "71200000-0", # usługi architektoniczne i podobne
+  "71210000-3", # doradcze usługi architektoniczne
+  "71220000-6", # usługi projektowania architektonicznego
+  "71221000-3", # usługi architektoniczne w zakresie obiektów budowlanych
+  "71222000-0", # usługi architektoniczne w zakresie obiektów zewnętrznych
+  "71223000-7", # usługi architektoniczne w zakresie rozbudowy budynków
+  "71230000-9", # organizacja architektonicznych konkursów projektowych
+  "71240000-2", # usługi architektoniczne, inżynieryjne i planowania
+  "71242000-6", # przygotowanie przedsięwzięcia i projektu, oszacowanie kosztów
+  "71248000-8", # nadzór nad projektem i dokumentacją
+  "71250000-5", # usługi architektoniczne, inżynieryjne i pomiarowe
+  "71320000-7", # usługi inżynieryjne w zakresie projektowania
+  "71400000-2", # usługi urbanistyczne i architektury krajobrazu
+  "71420000-8", # usługi architektury krajobrazu
+  "79932000-6", # usługi projektowania wnętrz
+]
+
+# Węższa lista dla ogłoszeń o wyniku (ceny) – bez ogólnych kodów, które dają setki
+# ogłoszeń inżynieryjnych i szybko wyczerpują limit WAF.
+result_cpv_codes = [
+  "71200000-0", "71210000-3", "71220000-6", "71221000-3", "71222000-0",
+  "71223000-7", "71230000-9", "71248000-8", "71400000-2", "79932000-6",
+]
+
+[filter]
+# Ogłoszenie trafia do oceny, jeśli zbierze co najmniej tyle punktów.
+min_score = 5
+
+# Tylko usługi (projekty to usługi; roboty budowlane i dostawy odpadają).
+order_types = ["Services"]
+
+# Przedmiot musi dotyczyć projektowania – inaczej to robota budowlana z błędnym CPV.
+require_any = [
+  "projekt", "dokumentacj", "koncepcj", "nadzór autorski", "nadzoru autorskiego",
+  "nadzorów autorskich", "inwentaryzacj", "wizualizacj", "program funkcjonalno",
+]
+
+# Odrzucamy, jeśli przedmiot zawiera którekolwiek z tych słów (małe litery, fragmenty).
+exclude_keywords = [
+  "drog", "ulic", "chodnik", "most", "wiadukt", "rondo", "skrzyżowan", "ścieżk", "parking",
+  "wodociąg", "kanalizac", "sieci", "oczyszczal", "fotowolt", "oświetleni", "kotłown",
+  "pomp ciepła", "źródła ciepła", "instalacji gazow", "elektroenerget",
+  "inwestora zastępczego", "inwestor zastępczy", "zaprojektuj i wybuduj", "zaprojektowanie i wykonanie",
+  "zaprojektowanie i budow", "geodezyjn", "mapy do celów", "plan ogólny", "planu ogólnego",
+  "miejscowego planu", "studium", "regulacj", "potok", "rzek", "wał", "melioracj",
+]
+
+# Punkty za województwo. Spoza listy = odrzucone.
+[filter.provinces]
+PL12 = 3 # małopolskie
+PL18 = 1 # podkarpackie
+PL24 = 1 # śląskie
+PL26 = 1 # świętokrzyskie
+
+# Dodatkowe punkty, gdy zamawiający jest blisko Krakowa lub Nowego Sącza.
+[filter.near]
+points = 2
+cities = [
+  "Kraków", "Wieliczka", "Niepołomice", "Skawina", "Myślenice", "Dobczyce", "Bochnia",
+  "Zabierzów", "Zielonki", "Liszki", "Mogilany", "Świątniki Górne", "Michałowice",
+  "Kocmyrzów-Luborzyca", "Igołomia-Wawrzeńczyce", "Biskupice", "Gdów", "Kłaj", "Siepraw",
+  "Nowy Sącz", "Stary Sącz", "Krynica-Zdrój", "Muszyna", "Piwniczna-Zdrój", "Rytro",
+  "Łącko", "Podegrodzie", "Chełmiec", "Kamionka Wielka", "Korzenna", "Łososina Dolna",
+  "Nawojowa", "Grybów", "Gorlice", "Limanowa", "Mszana Dolna", "Łukowica", "Laskowa",
+  "Marcinkowice", "Tymbark", "Nowy Targ", "Zakopane", "Szczawnica", "Krościenko nad Dunajcem",
+  "Tarnów", "Brzesko", "Ciężkowice", "Zakliczyn",
+]
+
+# Punkty za słowa w przedmiocie zamówienia (każda grupa liczy się raz).
+[filter.keywords]
+# Nasza specjalność
+specjalnosc = { points = 3, words = [
+  "wnętrz", "elewacj", "nadzór autorski", "nadzoru autorskiego", "nadzorów autorskich",
+  "koncepcj", "aranżacj", "wizualizacj", "adaptacj",
+] }
+# Projekt architektoniczny budynku
+budynek = { points = 2, words = [
+  "budynk", "budynek", "szkoł", "przedszkol", "żłob", "świetlic", "remiz", "dom kultury",
+  "domu kultury", "ośrodka kultury", "bibliotek", "sali gimnastycznej", "hali sportowej",
+  "urzędu", "ratusz", "ośrodka zdrowia", "przychodni", "mieszka", "zabytk", "kościoł",
+  "plebani", "muzeum", "willi", "dworu", "kamienic", "domu", "pensjonat", "schronisk",
+] }
+# Zakres prac, który robimy
+zakres = { points = 1, words = [
+  "przebudow", "rozbudow", "nadbudow", "termomodernizac", "modernizac", "remont",
+  "projektu budowlan", "dokumentacji projektow", "projektowo-kosztorys", "projektowo – kosztorys",
+] }
+
+# Punkty za konkretne, architektoniczne kody CPV w ogłoszeniu.
+[filter.cpv_bonus]
+points = 2
+codes = ["71220000", "71221000", "71223000", "79932000", "71248000", "71230000"]
+
+# Szacunkowa wartość (jeśli podana): powyżej tej kwoty netto zlecenie jest za duże dla biura.
+[filter.value]
+max_value = 500000
+penalty = 3

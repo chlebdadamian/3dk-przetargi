@@ -1,0 +1,351 @@
+"""CLI: python -m przetargi fetch | rescore | jev | list | show | similar | prices | report | review."""
+
+import argparse
+import os
+import sys
+import time
+import tomllib
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+from . import bzp, db, filters, jev, prices
+
+ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = ROOT / "data" / "przetargi.db"
+REPORTS = ROOT / "data" / "raporty"
+
+
+def load_env(path: Path) -> None:
+    """Minimalny loader .env (KEY=VALUE); nie nadpisuje zmiennych już ustawionych."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"'))
+
+
+def tender_url(tender_id: str | None) -> str:
+    return f"https://ezamowienia.gov.pl/mp-client/search/list/{tender_id}" if tender_id else ""
+
+
+def local_time(iso: str | None) -> str:
+    if not iso:
+        return "–"
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def load_config(path: Path) -> dict:
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
+
+def score_row(row: dict, cfg: dict) -> None:
+    row["score"], row["match_reason"] = filters.evaluate(row, cfg["filter"])
+    row["matched"] = int(row["score"] >= cfg["filter"]["min_score"])
+
+
+def find_notice(conn, ref: str) -> dict:
+    rows = conn.execute(
+        "SELECT * FROM notices WHERE notice_number LIKE ? ORDER BY notice_number", (f"%{ref}%",)
+    ).fetchall()
+    if len(rows) != 1:
+        sys.exit(f"Nie znaleziono jednoznacznie ogłoszenia '{ref}' ({len(rows)} trafień)")
+    return dict(rows[0])
+
+
+def windows(day_from: date, day_to: date) -> list[tuple[date, date]]:
+    """Miesiące kalendarzowe pokrywające zakres – stałe granice, żeby fetch_log działał między dniami."""
+    out = []
+    start = day_from.replace(day=1)
+    while start <= day_to:
+        next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        out.append((start, min(next_month - timedelta(days=1), day_to)))
+        start = next_month
+    return out
+
+
+def cmd_fetch(args, cfg):
+    conn = db.connect(DB_PATH)
+    bzp.REQUEST_DELAY = cfg["fetch"].get("request_delay", bzp.REQUEST_DELAY)
+    today = date.today()
+    days = args.days or cfg["fetch"]["days_back"]
+    result_days = cfg["fetch"]["history_days"] if args.history else days
+    plan = [
+        ("ContractNotice", cfg["fetch"]["cpv_codes"], windows(today - timedelta(days=days), today)),
+        ("TenderResultNotice", cfg["fetch"].get("result_cpv_codes", cfg["fetch"]["cpv_codes"]),
+         windows(today - timedelta(days=result_days), today)),
+    ]
+    seen, new_matches = set(), []
+    try:
+        for notice_type, codes, wins in plan:
+            for cpv in codes:
+                for w_from, w_to in wins:
+                    key = (notice_type, cpv, w_from.isoformat(), w_to.isoformat())
+                    # okna zamknięte w przeszłości pobieramy tylko raz
+                    if w_to < today and conn.execute(
+                        "SELECT 1 FROM fetch_log WHERE notice_type=? AND cpv=? AND day_from=? AND day_to=?", key
+                    ).fetchone():
+                        continue
+                    while True:
+                        try:
+                            items = bzp.fetch(notice_type, w_from, w_to, cpv)
+                            break
+                        except bzp.Blocked:
+                            if not args.wait:
+                                raise
+                            print(f"  403 z WAF – czekam {args.wait} min ({datetime.now():%H:%M})",
+                                  file=sys.stderr, flush=True)
+                            time.sleep(args.wait * 60)
+                    print(f"  {notice_type} {cpv} {w_from}–{w_to}: {len(items)}", file=sys.stderr)
+                    for item in items:
+                        if item["noticeNumber"] in seen:
+                            continue
+                        seen.add(item["noticeNumber"])
+                        row = bzp.normalize(item)
+                        score_row(row, cfg)
+                        if db.upsert(conn, row) and row["matched"] and notice_type == "ContractNotice":
+                            new_matches.append(row)
+                    if w_to < today:
+                        conn.execute("INSERT OR IGNORE INTO fetch_log VALUES (?, ?, ?, ?)", key)
+                    conn.commit()
+    except bzp.Blocked:
+        conn.commit()
+        print("\n! WAF e-Zamówień zablokował zapytania (403). Postęp zapisany – uruchom ponownie za ~15 min.")
+        blocked = True
+    else:
+        blocked = False
+    print(f"Pobrano {len(seen)} ogłoszeń, nowe pasujące: {len(new_matches)}")
+    for row in sorted(new_matches, key=lambda r: -r["score"]):
+        print_notice(row)
+    if blocked:
+        sys.exit(2)
+
+
+def cmd_rescore(args, cfg):
+    conn = db.connect(DB_PATH)
+    rows = conn.execute("SELECT * FROM notices WHERE notice_type = 'ContractNotice'").fetchall()
+    for r in rows:
+        row = dict(r)
+        score_row(row, cfg)
+        conn.execute(
+            "UPDATE notices SET score = ?, matched = ?, match_reason = ? WHERE notice_number = ?",
+            (row["score"], row["matched"], row["match_reason"], row["notice_number"]),
+        )
+    conn.commit()
+    n = conn.execute("SELECT count(*) FROM notices WHERE matched = 1 AND notice_type = 'ContractNotice'").fetchone()[0]
+    print(f"Przeliczono {len(rows)} ogłoszeń, pasujących: {n}")
+
+
+def print_notice(row, verdict=None):
+    print(f"\n[{row['score']} pkt] {row['title'][:160]}")
+    print(f"  {row['org_name']} ({row['org_city']}, {row['province']}) | termin ofert: {local_time(row['deadline'])}")
+    print(f"  {row['notice_number']} | {tender_url(row['tender_id'])}")
+    print(f"  punkty: {row['match_reason']}")
+    if row.get("fit"):
+        print(f"  {jev_line(row)}")
+    if verdict:
+        print(f"  OCENA: {verdict['verdict'].upper()} – {verdict['note'] or ''}")
+
+
+def jev_line(row) -> str:
+    if not row.get("fit"):
+        return ""
+    conf = f" ({row['fit_conf']:.0%})" if row["fit_conf"] is not None else ""
+    return (f"Jev: {row['fit']}{conf}; architektura {row['architecture']:.0%}; "
+            f"skala: {jev.SCALE_LABELS[row['scale']]}; warunki do spełnienia {row['conditions_ok']:.0%}")
+
+
+def open_candidates(conn, include_all=False, include_expired=False, include_reviewed=True):
+    """Pasujące = próg punktów albo Jev uznał za warte oferty (łapie nietypowe tytuły)."""
+    sql = """SELECT n.*, r.verdict, r.note, j.fit, j.fit_conf, j.architecture, j.scale, j.conditions_ok
+             FROM notices n
+             LEFT JOIN reviews r ON r.notice_number = n.notice_number
+             LEFT JOIN jev j ON j.notice_number = n.notice_number
+             WHERE n.notice_type = 'ContractNotice'"""
+    params = []
+    if not include_all:
+        sql += " AND (n.matched = 1 OR j.fit = 'tak')"
+    if not include_expired:
+        sql += " AND n.deadline >= ?"
+        params.append(now_utc())
+    if not include_reviewed:
+        sql += " AND r.verdict IS NULL"
+    return [dict(r) for r in conn.execute(sql + " ORDER BY n.score DESC, n.deadline", params)]
+
+
+def cmd_list(args, cfg):
+    conn = db.connect(DB_PATH)
+    rows = open_candidates(conn, args.all, args.expired)
+    if args.verdict:
+        rows = [r for r in rows if r["verdict"] == args.verdict]
+    for row in rows:
+        print_notice(row, row if row["verdict"] else None)
+    print(f"\nRazem: {len(rows)}")
+
+
+def cmd_show(args, cfg):
+    conn = db.connect(DB_PATH)
+    row = find_notice(conn, args.ref)
+    print_notice(row)
+    for name, body in bzp.sections(row["text"], limit=4000).items():
+        print(f"\n## {name}\n{body}")
+
+
+def print_similar(conn, row, out=print):
+    sims = prices.similar(conn, row)
+    s = prices.summary([r for _, r in sims])
+    if not s:
+        out("Brak podobnych rozstrzygnięć w bazie (uruchom: python -m przetargi fetch --history).")
+        return
+    offers = f", średnio ofert: {s['offers_avg']:.1f}" if s["offers_avg"] else ""
+    out(f"Podobne zlecenia ({s['n']}): mediana {prices.zl(s['median'])} brutto, "
+        f"zakres {prices.zl(s['min'])} – {prices.zl(s['max'])}{offers}")
+    for sim, r in sims:
+        out(f"- {prices.zl(r['price_winner'])} | ofert {r['offers'] or '?'} | {r['published'][:10]} | "
+            f"{r['province']} | {r['title'][:110]} (podob. {sim:.2f})")
+
+
+def cmd_similar(args, cfg):
+    conn = db.connect(DB_PATH)
+    row = find_notice(conn, args.ref)
+    print(row["title"])
+    print_similar(conn, row)
+
+
+def cmd_prices(args, cfg):
+    conn = db.connect(DB_PATH)
+    since = (date.today() - timedelta(days=365)).isoformat()
+    sql = """SELECT * FROM notices WHERE notice_type = 'TenderResultNotice'
+             AND published >= ? AND price_winner IS NOT NULL"""
+    params = [since]
+    for word in args.words:
+        sql += " AND lower(title) LIKE ?"
+        params.append(f"%{word.lower()}%")
+    if args.province:
+        sql += " AND province = ?"
+        params.append(args.province)
+    rows = [dict(r) for r in conn.execute(sql + " ORDER BY published DESC", params)]
+    for r in rows:
+        print(f"\n• {r['title'][:140]}")
+        print(f"  {r['org_name']} ({r['province']}) | {r['published'][:10]} | ofert: {r['offers']}")
+        print(f"  wygrał: {r['winner']} za {prices.zl(r['price_winner'])} "
+              f"(min {prices.zl(r['price_min'])}, max {prices.zl(r['price_max'])})")
+    s = prices.summary(rows)
+    if s:
+        print(f"\n{s['n']} wyników, mediana ceny zwycięzcy: {prices.zl(s['median'])}")
+    else:
+        print("Brak wyników. Najpierw pobierz historię: python -m przetargi fetch --history")
+
+
+def cmd_report(args, cfg):
+    """Raport kandydatów do oceny w Claude Code (markdown)."""
+    conn = db.connect(DB_PATH)
+    rows = open_candidates(conn, include_reviewed=args.all)
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    path = REPORTS / f"kandydaci-{date.today().isoformat()}.md"
+    lines = [f"# Kandydaci do oceny – {date.today().isoformat()}", "", f"Liczba: {len(rows)}", ""]
+    for row in rows:
+        lines += [
+            f"## [{row['score']} pkt] {row['title']}",
+            "",
+            f"- Numer: {row['notice_number']}",
+            f"- Zamawiający: {row['org_name']}, {row['org_city']} ({row['province']})",
+            f"- Termin składania ofert: {local_time(row['deadline'])}",
+            f"- Link: {tender_url(row['tender_id'])}",
+            f"- Punkty: {row['match_reason']}",
+        ]
+        if row["fit"]:
+            lines.append(f"- {jev_line(row)}")
+        if row["verdict"]:
+            lines.append(f"- Dotychczasowa ocena: {row['verdict']} – {row['note'] or ''}")
+        for name, body in bzp.sections(row["text"]).items():
+            lines += ["", f"**{name}:** {body}"]
+        lines.append("")
+        print_similar(conn, row, out=lines.append)
+        lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"{len(rows)} kandydatów -> {path}")
+
+
+def cmd_jev(args, cfg):
+    if not os.environ.get("JEV_API_KEY"):
+        sys.exit("Brak JEV_API_KEY w .env")
+    conn = db.connect(DB_PATH)
+    ok, bad = jev.assess_pending(conn, args.limit)
+    print(f"Jev ocenił {ok} ogłoszeń" + (f", niepoprawnych odpowiedzi: {bad}" if bad else ""))
+    for verdict in ("tak", "moze", "nie"):
+        n = conn.execute("SELECT count(*) FROM jev WHERE fit = ?", (verdict,)).fetchone()[0]
+        print(f"  {verdict}: {n}")
+
+
+def cmd_review(args, cfg):
+    conn = db.connect(DB_PATH)
+    row = find_notice(conn, args.ref)
+    conn.execute(
+        "INSERT OR REPLACE INTO reviews VALUES (?, ?, ?, ?)",
+        (row["notice_number"], args.verdict, args.note, datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    print(f"{row['notice_number']}: {args.verdict}")
+
+
+def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    p = argparse.ArgumentParser(prog="przetargi")
+    p.add_argument("--config", type=Path, default=ROOT / "config.toml")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    f = sub.add_parser("fetch", help="pobierz ogłoszenia z BZP i przefiltruj")
+    f.add_argument("--days", type=int, help="ile dni wstecz (domyślnie z config.toml)")
+    f.add_argument("--history", action="store_true", help="pobierz też rok ogłoszeń o wyniku (ceny)")
+    f.add_argument("--wait", type=int, metavar="MIN", help="po blokadzie WAF odczekaj MIN minut i wznów")
+
+    sub.add_parser("rescore", help="przelicz punkty po zmianie config.toml (bez sieci)")
+
+    j = sub.add_parser("jev", help="wstępna ocena otwartych przetargów modelem Jev")
+    j.add_argument("--limit", type=int, help="maks. liczba zapytań w tym uruchomieniu")
+
+    l = sub.add_parser("list", help="pokaż pasujące, otwarte przetargi")
+    l.add_argument("--all", action="store_true", help="także poniżej progu punktów")
+    l.add_argument("--expired", action="store_true", help="także po terminie składania ofert")
+    l.add_argument("--verdict", choices=["tak", "moze", "nie"], help="tylko z daną oceną")
+
+    s = sub.add_parser("show", help="szczegóły ogłoszenia (opis, warunki, kryteria)")
+    s.add_argument("ref", help="numer ogłoszenia lub jego fragment, np. 00506260")
+
+    si = sub.add_parser("similar", help="ceny podobnych rozstrzygniętych przetargów")
+    si.add_argument("ref")
+
+    pr = sub.add_parser("prices", help="ceny z rozstrzygniętych przetargów (12 mies.)")
+    pr.add_argument("words", nargs="*", help="słowa w przedmiocie zamówienia")
+    pr.add_argument("--province", help="np. PL12")
+
+    r = sub.add_parser("report", help="raport kandydatów do oceny (markdown)")
+    r.add_argument("--all", action="store_true", help="także już ocenione")
+
+    rv = sub.add_parser("review", help="zapisz ocenę przetargu")
+    rv.add_argument("ref")
+    rv.add_argument("verdict", choices=["tak", "moze", "nie"])
+    rv.add_argument("note", nargs="?", default="")
+
+    args = p.parse_args()
+    load_env(ROOT / ".env")
+    cfg = load_config(args.config)
+    commands = {
+        "fetch": cmd_fetch, "rescore": cmd_rescore, "jev": cmd_jev, "list": cmd_list, "show": cmd_show,
+        "similar": cmd_similar, "prices": cmd_prices, "report": cmd_report, "review": cmd_review,
+    }
+    commands[args.cmd](args, cfg)
+
+
+if __name__ == "__main__":
+    main()
