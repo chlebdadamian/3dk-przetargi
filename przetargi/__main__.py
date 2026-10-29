@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import sys
 import time
 import tomllib
@@ -175,6 +176,8 @@ def cmd_fetch(args, cfg):
         extra += fetch_sarp(conn, cfg)
     if args.source in ("all", "pz"):
         extra += fetch_pz(conn, cfg)
+    dups = mark_duplicates(conn)
+    extra = [r for r in extra if r["notice_number"] not in dups]
     if args.source not in ("all", "bzp"):
         print(f"Nowe pasujące: {len(extra)}")
         for row in sorted(extra, key=lambda r: -r["score"]):
@@ -229,11 +232,42 @@ def cmd_fetch(args, cfg):
         blocked = True
     else:
         blocked = False
+    dups = mark_duplicates(conn)
+    new_matches = [r for r in new_matches if r["notice_number"] not in dups]
     print(f"Pobrano {len(seen)} ogłoszeń, nowe pasujące: {len(new_matches)}")
     for row in sorted(new_matches, key=lambda r: -r["score"]):
         print_notice(row)
     if blocked:
         sys.exit(2)
+
+
+BZP_NUMBER_RE = re.compile(r"(\d{4}/BZP \d{8})")
+
+
+def mark_duplicates(conn) -> set[str]:
+    """Ogłoszenia z innych źródeł, które powtarzają przetarg z BZP (numer BZP w tytule/treści):
+    zdejmujemy je z kandydatów – oceniamy i pokazujemy wersję z BZP."""
+    dups = set()
+    rows = conn.execute(
+        f"SELECT notice_number, title, text FROM notices WHERE matched = 1 "
+        f"AND notice_type IN {OPEN_TYPES} AND notice_type != 'ContractNotice'"
+    ).fetchall()
+    for number, title, text in rows:
+        m = BZP_NUMBER_RE.search(f"{title} {text or ''}")
+        if not m:
+            continue
+        original = conn.execute(
+            "SELECT notice_number FROM notices WHERE notice_type = 'ContractNotice' AND notice_number LIKE ?",
+            (f"{m.group(1)}%",),
+        ).fetchone()
+        if original:
+            conn.execute(
+                "UPDATE notices SET matched = 0, match_reason = ? WHERE notice_number = ?",
+                (f"duplikat {original[0]}", number),
+            )
+            dups.add(number)
+    conn.commit()
+    return dups
 
 
 def cmd_rescore(args, cfg):
@@ -247,8 +281,9 @@ def cmd_rescore(args, cfg):
             (row["score"], row["matched"], row["match_reason"], row["notice_number"]),
         )
     conn.commit()
+    dups = mark_duplicates(conn)
     n = conn.execute(f"SELECT count(*) FROM notices WHERE matched = 1 AND notice_type IN {OPEN_TYPES}").fetchone()[0]
-    print(f"Przeliczono {len(rows)} ogłoszeń, pasujących: {n}")
+    print(f"Przeliczono {len(rows)} ogłoszeń, pasujących: {n} (duplikatów BZP z innych źródeł: {len(dups)})")
 
 
 def print_notice(row, verdict=None):
