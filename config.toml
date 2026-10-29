@@ -35,9 +35,76 @@ result_cpv_codes = [
   "71223000-7", "71230000-9", "71248000-8", "71400000-2", "79932000-6",
 ]
 
+# BIP-y na bip.malopolska.pl: jednostka -> miejscowość (do punktów za bliskość).
+# Brakuje m.in. Starego Sącza, Krynicy, Nowego Sącza, powiatu nowosądeckiego – inne systemy BIP.
+[fetch.bip_units]
+ugchelmiec = "Chełmiec"
+uglacko = "Łącko"
+ugpodegrodzie = "Podegrodzie"
+ugnawojowa = "Nawojowa"
+ugrytro = "Rytro"
+umigmuszyna = "Muszyna"
+uglabowa = "Łabowa"
+ugkamionkawielka = "Kamionka Wielka"
+ugkorzenna = "Korzenna"
+uglososinadolna = "Łososina Dolna"
+uggrybow = "Grybów"
+umgrybow = "Grybów"
+umigpiwnicznazdroj = "Piwniczna-Zdrój"
+splimanowa = "Limanowa"
+umlimanowa = "Limanowa"
+uglimanowa = "Limanowa"
+uglaskowa = "Laskowa"
+ugtymbark = "Tymbark"
+uglukowica = "Łukowica"
+ugmszanadolna = "Mszana Dolna"
+ugdobra = "Dobra"
+ugjodlownik = "Jodłownik"
+ugkamienica = "Kamienica"
+uglipnicamurowana = "Lipnica Murowana"
+ugzabierzow = "Zabierzów"
+ugliszki = "Liszki"
+ugmogilany = "Mogilany"
+ugczernichow = "Czernichów"
+ugkocmyrzowluborzyca = "Kocmyrzów-Luborzyca"
+ugbiskupice = "Biskupice"
+uggdow = "Gdów"
+ugklaj = "Kłaj"
+ugsiepraw = "Siepraw"
+ugmichalowice = "Michałowice"
+umigswiatnikigorne = "Świątniki Górne"
+umigniepolomice = "Niepołomice"
+umigskawina = "Skawina"
+umigmyslenice = "Myślenice"
+umigwieliczka = "Wieliczka"
+ugimdobczyce = "Dobczyce"
+ugpcim = "Pcim"
+ugtokarnia = "Tokarnia"
+spkrakow = "Kraków"
+spwieliczka = "Wieliczka"
+spmyslenice = "Myślenice"
+spbochnia = "Bochnia"
+spgorlice = "Gorlice"
+ugbochnia = "Bochnia"
+umbochnia = "Bochnia"
+umgorlice = "Gorlice"
+uggorlice = "Gorlice"
+ugmoszczenica = "Moszczenica"
+ugsekowa = "Sękowa"
+ugropa = "Ropa"
+ugusciegorlickie = "Uście Gorlickie"
+uglipinki = "Lipinki"
+umbiecz = "Biecz"
+ugnowytarg = "Nowy Targ"
+
+[fetch.pz]
+# Frazy dla wyszukiwarki platformazakupowa.pl (każda = 1 zapytanie, 15 min przerwy).
+queries = ["projekt", "dokumentacji projektowej", "koncepcji", "nadzór autorski"]
+
 [filter]
 # Ogłoszenie trafia do oceny, jeśli zbierze co najmniej tyle punktów.
 min_score = 5
+content_groups = ["specjalnosc", "budynek"]
 
 # Tylko usługi (projekty to usługi; roboty budowlane i dostawy odpadają).
 order_types = ["Services"]
@@ -65,6 +132,7 @@ exclude_keywords = [
   "inspektora nadzoru", "inspektor nadzoru", "nadzoru inwestorskiego", "nadzór inwestorski", "zaprojektuj i wybuduj", "zaprojektowanie i wykonanie",
   "zaprojektowanie i budow", "geodezyjn", "mapy do celów", "plan ogólny", "planu ogólnego",
   "miejscowego planu", "studium", "regulacj", "potok", "rzek", "wał", "melioracj",
+  "osuwisk", "rowerow", "tras ", "trasy", "urządzenia lasu", "zawiadomieni", "obwieszczeni", "wyłożeni",
 ]
 
 # Punkty za województwo. Spoza listy = odrzucone.
@@ -86,13 +154,22 @@ cities = [
   "Nawojowa", "Grybów", "Gorlice", "Limanowa", "Mszana Dolna", "Łukowica", "Laskowa",
   "Marcinkowice", "Tymbark", "Nowy Targ", "Zakopane", "Szczawnica", "Krościenko nad Dunajcem",
   "Tarnów", "Brzesko", "Ciężkowice", "Zakliczyn",
+  "Łabowa", "Dobra", "Jodłownik", "Kamienica", "Lipnica Murowana", "Czernichów", "Michałowice",
+  "Pcim", "Tokarnia", "Moszczenica", "Sękowa", "Ropa", "Uście Gorlickie", "Lipinki", "Biecz",
+]
+# Dla źródeł bez lokalizacji (platformazakupowa): fragmenty nazw powiatów w nazwie zamawiającego.
+org_words = [
+  "nowosądeck", "limanowsk", "gorlick", "krakowsk", "wielick", "myślenick", "bocheńsk",
+  "nowotarsk", "tatrzańsk", "tarnowsk", "brzesk", "suski", "wadowick", "małopolsk",
 ]
 
 # Punkty za słowa w przedmiocie zamówienia (każda grupa liczy się raz).
+# Do dopasowania potrzebne jest trafienie w jedną z content_groups (albo w CPV bonus) –
+# sama lokalizacja i ogólne „dokumentacja/przebudowa” (grupa zakres) nie wystarczą.
 [filter.keywords]
 # Nasza specjalność
 specjalnosc = { points = 3, words = [
-  "wnętrz", "elewacj", "nadzór autorski", "nadzoru autorskiego", "nadzorów autorskich",
+  " wnętrz", "elewacj", "nadzór autorski", "nadzoru autorskiego", "nadzorów autorskich",
   "koncepcj", "aranżacj", "wizualizacj", "adaptacj",
 ] }
 # Projekt architektoniczny budynku
@@ -100,7 +177,7 @@ budynek = { points = 2, words = [
   "budynk", "budynek", "szkoł", "przedszkol", "żłob", "świetlic", "remiz", "dom kultury",
   "domu kultury", "ośrodka kultury", "bibliotek", "sali gimnastycznej", "hali sportowej",
   "urzędu", "ratusz", "ośrodka zdrowia", "przychodni", "mieszka", "zabytk", "kościoł",
-  "plebani", "muzeum", "willi", "dworu", "kamienic", "domu", "pensjonat", "schronisk",
+  "plebani", "muzeum", "willi", "dworu", "kamienicy", "domu", "pensjonat", "schronisk", "edukacyj",
 ] }
 # Zakres prac, który robimy
 zakres = { points = 1, words = [

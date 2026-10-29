@@ -8,12 +8,15 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bk, bzp, db, filters, jev, notice, prices
+from . import bip, bk, bzp, db, filters, jev, notice, prices, pz, sarp
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
 REPORTS = ROOT / "data" / "raporty"
-OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE)  # ogłoszenia, na które można złożyć ofertę
+# ogłoszenia, na które można złożyć ofertę
+OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE)
+# źródła bez terminu w danych: aktualne tyle dni od publikacji
+NO_DEADLINE_DAYS = {sarp.NOTICE_TYPE: 60, bip.NOTICE_TYPE: bip.OPEN_DAYS}
 
 
 def load_env(path: Path) -> None:
@@ -44,6 +47,10 @@ def load_config(path: Path) -> dict:
 
 
 def score_row(row: dict, cfg: dict) -> None:
+    if row["notice_type"] == sarp.NOTICE_TYPE:
+        # konkursy są z definicji architektoniczne i rzadkie – wszystkie idą do oceny
+        row["score"], row["match_reason"], row["matched"] = cfg["filter"]["min_score"], "konkurs SARP", 1
+        return
     row["match_text"] = notice.match_text(row)
     row["score"], row["match_reason"] = filters.evaluate(row, cfg["filter"])
     row["matched"] = int(row["score"] >= cfg["filter"]["min_score"])
@@ -95,14 +102,85 @@ def fetch_bk(conn, cfg) -> list[dict]:
     return new_matches
 
 
+def fetch_sarp(conn, cfg) -> list[dict]:
+    known = {r[0] for r in conn.execute("SELECT notice_number FROM notices WHERE notice_type = ?",
+                                        (sarp.NOTICE_TYPE,))}
+    new = []
+    for pid, path in sarp.list_entries():
+        if f"SARP/{pid}" in known:
+            continue
+        row = sarp.entry_row(pid, path)
+        score_row(row, cfg)
+        db.upsert(conn, row)
+        conn.commit()
+        new.append(row)
+    print(f"  SARP: nowych konkursów: {len(new)}", file=sys.stderr)
+    return new
+
+
+def fetch_pz(conn, cfg) -> list[dict]:
+    """platformazakupowa.pl: kilka fraz, 15 min przerwy między zapytaniami (robots.txt)."""
+    new_matches, seen = [], set()
+    for query in cfg["fetch"]["pz"]["queries"]:
+        items = pz.search(query)
+        print(f"  platformazakupowa '{query}': {len(items)} ({datetime.now():%H:%M})", file=sys.stderr, flush=True)
+        for item in items:
+            if item["id"] in seen:
+                continue
+            seen.add(item["id"])
+            row = pz.row(item)
+            score_row(row, cfg)
+            if db.upsert(conn, row) and row["matched"]:
+                new_matches.append(row)
+        conn.commit()
+    return new_matches
+
+
+def fetch_bip(conn, cfg) -> list[dict]:
+    """BIP-y gmin: nowe artykuły w działach zamówień; szczegóły tylko dla pasujących."""
+    known = {r[0] for r in conn.execute("SELECT notice_number FROM notices WHERE notice_type = ?",
+                                        (bip.NOTICE_TYPE,))}
+    new_matches, total = [], 0
+    for unit, city in cfg["fetch"]["bip_units"].items():
+        try:
+            unit_name, targets = bip.sections(unit)
+            for target in targets:
+                for item in bip.articles(target):
+                    total += 1
+                    row = bip.row(item, unit_name, city)
+                    if row["notice_number"] in known:
+                        continue
+                    known.add(row["notice_number"])
+                    score_row(row, cfg)
+                    if row["matched"]:
+                        bip.add_details(row)
+                        new_matches.append(row)
+                    db.upsert(conn, row)
+            conn.commit()
+        except (OSError, ValueError, KeyError) as e:
+            print(f"  BIP {unit}: błąd {e}", file=sys.stderr)
+    print(f"  BIP: {len(cfg['fetch']['bip_units'])} jednostek, {total} artykułów, nowe pasujące: "
+          f"{len(new_matches)}", file=sys.stderr)
+    return [r for r in new_matches if not r.get("procedure_result")]
+
+
 def cmd_fetch(args, cfg):
     conn = db.connect(DB_PATH)
-    bk_matches = fetch_bk(conn, cfg) if args.source in ("all", "bk") else []
-    if args.source == "bk":
-        print(f"Baza Konkurencyjności – nowe pasujące: {len(bk_matches)}")
-        for row in sorted(bk_matches, key=lambda r: -r["score"]):
+    extra = []
+    if args.source in ("all", "bip"):
+        extra += fetch_bip(conn, cfg)
+    if args.source in ("all", "bk"):
+        extra += fetch_bk(conn, cfg)
+    if args.source in ("all", "sarp"):
+        extra += fetch_sarp(conn, cfg)
+    if args.source in ("all", "pz"):
+        extra += fetch_pz(conn, cfg)
+    if args.source not in ("all", "bzp"):
+        print(f"Nowe pasujące: {len(extra)}")
+        for row in sorted(extra, key=lambda r: -r["score"]):
             print_notice(row)
         return
+    bk_matches = extra
     bzp.REQUEST_DELAY = cfg["fetch"].get("request_delay", bzp.REQUEST_DELAY)
     today = date.today()
     days = args.days or cfg["fetch"]["days_back"]
@@ -203,8 +281,12 @@ def open_candidates(conn, include_all=False, include_expired=False, include_revi
     if not include_all:
         sql += " AND (n.matched = 1 OR j.fit = 'tak')"
     if not include_expired:
-        sql += " AND n.deadline >= ?"
+        no_deadline = " OR ".join(
+            "(n.deadline IS NULL AND n.notice_type = ? AND n.published >= ?)" for _ in NO_DEADLINE_DAYS)
+        sql += f" AND (n.deadline >= ? OR {no_deadline}) AND COALESCE(n.procedure_result, '') NOT LIKE 'rozstrzygn%'"
         params.append(now_utc())
+        for kind, days in NO_DEADLINE_DAYS.items():
+            params += [kind, (date.today() - timedelta(days=days)).isoformat()]
     if not include_reviewed:
         sql += " AND r.verdict IS NULL"
     return [dict(r) for r in conn.execute(sql + " ORDER BY n.score DESC, n.deadline", params)]
@@ -338,8 +420,9 @@ def main():
     f.add_argument("--days", type=int, help="ile dni wstecz (domyślnie z config.toml)")
     f.add_argument("--history", action="store_true", help="pobierz też rok ogłoszeń o wyniku (ceny)")
     f.add_argument("--wait", type=int, metavar="MIN", help="po blokadzie WAF odczekaj MIN minut i wznów")
-    f.add_argument("--source", choices=["all", "bzp", "bk"], default="all",
-                   help="bzp = e-Zamówienia, bk = Baza Konkurencyjności")
+    f.add_argument("--source", choices=["all", "bzp", "bk", "pz", "sarp", "bip"], default="all",
+                   help="bzp = e-Zamówienia, bk = Baza Konkurencyjności, pz = platformazakupowa.pl "
+                        "(wolne: 15 min między zapytaniami), sarp = konkursy SARP, bip = BIP-y gmin")
 
     sub.add_parser("rescore", help="przelicz punkty po zmianie config.toml (bez sieci)")
 

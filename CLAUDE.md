@@ -18,6 +18,18 @@ python -m przetargi review <nr> tak|moze|nie "uzasadnienie"
 
 `<nr>` może być fragmentem numeru, np. `00506260`.
 
+## Źródła (`fetch --source …`)
+
+| źródło | moduł | uwagi |
+|---|---|---|
+| `bzp` – e-Zamówienia (BZP) | `bzp.py` | zamówienia ≥ 130 tys. zł + ogłoszenia o wyniku (ceny); WAF – patrz niżej |
+| `bk` – Baza Konkurencyjności | `bk.py` | zamówienia z projektów UE; lista + szczegóły kandydatów |
+| `bip` – BIP-y gmin na bip.malopolska.pl | `bip.py` | zapytania < 130 tys. zł; lista jednostek w `config.toml` `[fetch.bip_units]`; termin w PDF, więc „aktualne” = 21 dni od publikacji |
+| `pz` – platformazakupowa.pl | `pz.py` | robots.txt: Crawl-delay 900 → 15 min między zapytaniami; tylko wyszukiwarka po frazach; brak lokalizacji – bliskość z nazwy zamawiającego |
+| `sarp` – konkursy SARP | `sarp.py` | wszystkie nowe idą do oceny (bez terminów w danych, „aktualne” = 60 dni) |
+
+`fetch` bez `--source` pobiera wszystko; przez platformazakupowa trwa to ~45 min.
+
 ## API BZP
 
 - `https://ezamowienia.gov.pl/mo-board/api/v1/notice` – publiczne, bez klucza.

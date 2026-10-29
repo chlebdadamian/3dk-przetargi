@@ -10,8 +10,17 @@ Profil biura i założenia są w `CLAUDE.md` (sekcja „Profil biura”). Odpowi
 ## 1. Pobierz dane
 
 ```
-python -m przetargi fetch
+python -m przetargi fetch --source bip
+python -m przetargi fetch --source bk
+python -m przetargi fetch --source sarp
+python -m przetargi fetch --source bzp
+python -m przetargi fetch --source pz      # w tle: 15 min między zapytaniami (robots.txt)
+python -m przetargi jev                     # wstępna ocena nowych kandydatów
 ```
+
+Konkursy SARP: oceń, czy to konkurs projektowy (szansa na zlecenie bez portfolio publicznego),
+czy nagroda za realizację (renoma/portfolio) – i czy termin zgłoszeń nie minął (jest w opisie).
+BIP: treść zapytania jest w PDF-ie – podaj link i zaznacz, że termin trzeba sprawdzić w załączniku.
 
 Jeśli baza jest pusta albo nie ma cen (komunikat w `similar`), uruchom `fetch --days 30 --history`
 w tle (trwa kilka minut). Przy 403 z WAF: odczekaj ~10 min i spróbuj raz – nie zmieniaj nagłówków.

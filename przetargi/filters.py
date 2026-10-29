@@ -2,13 +2,16 @@
 
 
 def _hits(text: str, words: list[str]) -> list[str]:
-    return [w for w in words if w in text]
+    # słowo zaczynające się spacją pasuje tylko od początku wyrazu (" wnętrz" ≠ "zewnętrznymi")
+    text = f" {text}"
+    return [w.strip() for w in words if w in text]
 
 
 def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
     """Zwraca (punkty, uzasadnienie). Punkty 0 = odrzucone twardym warunkiem."""
     provinces = cfg.get("provinces") or {}
-    if provinces and row["province"] not in provinces:
+    # brak województwa = źródło bez lokalizacji (platformazakupowa, SARP) – nie odrzucamy
+    if provinces and row["province"] and row["province"] not in provinces:
         return 0, f"województwo {row['province']}"
 
     order_types = cfg.get("order_types") or []
@@ -24,7 +27,7 @@ def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
         return 0, "nie dotyczy projektowania"
 
     score, reasons = 0, []
-    if provinces:
+    if provinces and row["province"]:
         score += provinces[row["province"]]
         reasons.append(f"{row['province']} +{provinces[row['province']]}")
 
@@ -33,6 +36,16 @@ def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
     if city and city in {c.lower() for c in near.get("cities", [])}:
         score += near["points"]
         reasons.append(f"blisko ({row['org_city']}) +{near['points']}")
+    elif not row["province"]:
+        # bez lokalizacji: szukamy miejscowości / powiatu w nazwie zamawiającego
+        org = (row.get("org_name") or "").lower()
+        hit = next((w for w in [c.lower() for c in near.get("cities", [])] + near.get("org_words", [])
+                    if w in org), None)
+        if not hit:
+            return 1, "lokalizacja nieznana – w nazwie zamawiającego brak miejscowości z okolicy"
+        bonus_pl = provinces.get("PL12", 0)
+        score += near["points"] + bonus_pl
+        reasons.append(f"blisko z nazwy zamawiającego ({hit}) +{near['points'] + bonus_pl}")
 
     for group, spec in cfg.get("keywords", {}).items():
         hits = _hits(title, spec["words"])
@@ -46,8 +59,9 @@ def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
         score += bonus["points"]
         reasons.append(f"CPV {', '.join(cpv_hits)} +{bonus['points']}")
 
-    # sama lokalizacja nie wystarcza – musi trafić przedmiot (słowa kluczowe lub CPV)
-    if not any(r.split(":")[0] in cfg.get("keywords", {}) for r in reasons) and not cpv_hits:
+    # sama lokalizacja nie wystarcza – musi trafić przedmiot (specjalność / budynek albo CPV)
+    content = cfg.get("content_groups") or list(cfg.get("keywords", {}))
+    if not any(r.split(":")[0] in content for r in reasons) and not cpv_hits:
         return 1, "; ".join(reasons + ["brak dopasowania przedmiotu"])
 
     value = cfg.get("value", {})
