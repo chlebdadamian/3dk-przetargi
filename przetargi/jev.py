@@ -21,7 +21,8 @@ PROFILE = (
     "elewacje, termomodernizacje, wnętrza, adaptacje, koncepcje, wizualizacje, nadzór autorski, "
     "trudny teren (skarpy). Architekt ma uprawnienia do projektowania bez ograniczeń w specjalności "
     "architektonicznej. Brak doświadczenia w projektach budynków użyteczności publicznej "
-    "(jedno małe zlecenie publiczne: projekt łazienki) i przy zabytkach. Największe dotychczasowe "
+    "(jedno małe zlecenie publiczne: projekt łazienki) i przy zabytkach. Wnętrza: domy prywatne i "
+    "części wspólne bloku mieszkalnego – bez wnętrz edukacyjnych, wystawienniczych, kulturalnych, turystycznych. Największe dotychczasowe "
     "zlecenie ok. 90 tys. zł. Kosztorysy i branże (konstrukcja, instalacje) robią podwykonawcy. "
     "Projekty domów prywatnych liczą się tam, gdzie warunek nie wymaga obiektu publicznego ani zabytku."
 )

@@ -45,7 +45,9 @@ order_types = ["Services"]
 # Przedmiot musi dotyczyć projektowania – inaczej to robota budowlana z błędnym CPV.
 # Nie samo „projekt”: w Bazie Konkurencyjności każde ogłoszenie mówi o „projekcie” unijnym.
 require_any = [
-  "projektow", "projektant", "projekt budowl", "projektu budowl", "projekt architekt",
+  "projektow", "projektów", "projektant", "projekty budowl", "projekty architekt", "projekty wnętrz",
+  "projekt budynk", "projektu budynk", "projekt obiekt", "projektu obiekt", "projekt dom", "projektu dom",
+  "projekt budowl", "projektu budowl", "projekt architekt",
   "projektu architekt", "projekt wnętrz", "projektu wnętrz", "projekt wykonaw", "projektu wykonaw",
   "projekt techniczn", "projektu techniczn", "projekt elewacj", "projektu elewacj",
   "projekt przebudow", "projektu przebudow", "projekt rozbudow", "projektu rozbudow",
@@ -59,7 +61,8 @@ exclude_keywords = [
   "drog", "ulic", "chodnik", "most", "wiadukt", "rondo", "skrzyżowan", "ścieżk", "parking",
   "wodociąg", "kanalizac", "sieci", "oczyszczal", "fotowolt", "oświetleni", "kotłown",
   "pomp ciepła", "źródła ciepła", "instalacji gazow", "elektroenerget",
-  "inwestora zastępczego", "inwestor zastępczy", "zaprojektuj i wybuduj", "zaprojektowanie i wykonanie",
+  "inwestora zastępczego", "inwestor zastępczy", "zrid", "dw ", "dk ", "dp ",
+  "inspektora nadzoru", "inspektor nadzoru", "nadzoru inwestorskiego", "nadzór inwestorski", "zaprojektuj i wybuduj", "zaprojektowanie i wykonanie",
   "zaprojektowanie i budow", "geodezyjn", "mapy do celów", "plan ogólny", "planu ogólnego",
   "miejscowego planu", "studium", "regulacj", "potok", "rzek", "wał", "melioracj",
 ]

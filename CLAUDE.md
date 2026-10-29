@@ -44,6 +44,8 @@ Potwierdzone z biurem (2026-10-29):
   (np. „projekt budynku o kubaturze/powierzchni…” bez wymogu „użyteczności publicznej”),
   ewentualnie wspólnie z podwykonawcą/partnerem lub na jego zasobach (art. 118 Pzp);
 - Daniel ma uprawnienia do projektowania w specjalności architektonicznej **bez ograniczeń**;
+- wnętrza: domy prywatne + projekt wnętrz części wspólnych bloku mieszkalnego. Brak wnętrz przestrzeni
+  edukacyjnych, wystawienniczych, muzealnych, kulturalnych, turystycznych (pensjonat, hotel, restauracja);
 - brak projektów obiektów zabytkowych (ewidencja / rejestr zabytków) – warunki „projekt przy zabytku” wykluczają;
 - największe dotychczasowe zlecenie: ok. 80–90 tys. zł – warunki „usługa o wartości min. X zł” powyżej tej
   kwoty wykluczają (chyba że na zasobach partnera, art. 118 Pzp);
