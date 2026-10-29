@@ -43,8 +43,14 @@ min_score = 5
 order_types = ["Services"]
 
 # Przedmiot musi dotyczyć projektowania – inaczej to robota budowlana z błędnym CPV.
+# Nie samo „projekt”: w Bazie Konkurencyjności każde ogłoszenie mówi o „projekcie” unijnym.
 require_any = [
-  "projekt", "dokumentacj", "koncepcj", "nadzór autorski", "nadzoru autorskiego",
+  "projektow", "projektant", "projekt budowl", "projektu budowl", "projekt architekt",
+  "projektu architekt", "projekt wnętrz", "projektu wnętrz", "projekt wykonaw", "projektu wykonaw",
+  "projekt techniczn", "projektu techniczn", "projekt elewacj", "projektu elewacj",
+  "projekt przebudow", "projektu przebudow", "projekt rozbudow", "projektu rozbudow",
+  "projekt termomodern", "projektu termomodern", "projekt adaptacj", "projektu adaptacj",
+  "dokumentacj", "koncepcj", "nadzór autorski", "nadzoru autorskiego",
   "nadzorów autorskich", "inwentaryzacj", "wizualizacj", "program funkcjonalno",
 ]
 

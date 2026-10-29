@@ -27,7 +27,32 @@
       "PowerShell(python -c \"import sqlite3; c=sqlite3.connect\\('data/przetargi.db'\\); print\\('usunięto ocen Jev:', c.execute\\('delete from jev'\\).rowcount\\); c.commit\\(\\)\")",
       "PowerShell(python -m przetargi review 00498883 nie \"Wawel: biuro rezygnuje - zespół 7 osób z konserwatorem \\(art. 37a\\), brak doświadczenia przy zabytkach.\")",
       "PowerShell(git add -A)",
-      "PowerShell(git push -u origin main)"
+      "PowerShell(git push -u origin main)",
+      "PowerShell(git -C C:\\\\Users\\\\damia\\\\Documents\\\\traderxtb log -1 --format='%an <%ae>')",
+      "PowerShell(git config user.name \"chlebdadamian\")",
+      "PowerShell(git config user.email \"damian313@gmail.com\")",
+      "Bash(mkdir -p bk)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/ -o bk/index.html)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/config.js)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/assets/index-D3ELI812.js -o app.js)",
+      "Bash(curl -s -A przetargi-monitor/0.1 '__TRACKED_VAR__/api/announcements/search?query=projekt%20architektoniczny&limit=2' -o s.json -w '%{http_code} %{size_download}\\\\n')",
+      "Bash(curl -s -A przetargi-monitor/0.1 __TRACKED_VAR__/api/dictionaries/search-filters -o f.json -w '%{http_code}\\\\n')",
+      "Bash(PYTHONIOENCODING=utf-8 python -I -c ' *)",
+      "Bash(grep -oE 'getFetchData\\\\\\(\\\\\\)\\\\{\\(let|const|return\\)[^}]{0,300}' app.js)",
+      "Bash(grep -oE '.{100}getFetchUrl\\\\\\(\\\\\\),.{300}' app.js)",
+      "Bash(grep -oE 'sortingValues=\\\\[[^;]{0,400}' app.js)",
+      "Bash(grep -oE 'SEARCH_CLEANED_FILTERS=\\\\{[^}]{0,400}' app.js)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" -G \"https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/api/announcements/search\" --data-urlencode \"page=1\" --data-urlencode \"limit=3\" --data-urlencode \"sort=default\" --data-urlencode \"status[]=PUBLISHED\" --data-urlencode \"cpvItem[]=71220000-6\" -o s.json -w \"%{http_code}\\\\n\")",
+      "Bash(grep -oE '\"/ogloszenia/[^\"]{0,40}\"|`/ogloszenia/[^`]{0,60}`' app.js)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" -G \"https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/api/announcements/search\" --data-urlencode page=1 --data-urlencode limit=200 --data-urlencode sort=publicationDate --data-urlencode \"status[]=PUBLISHED\")",
+      "Bash(python -I -c \"import json,sys;d=json.load\\(sys.stdin\\)['data'];print\\('limit200 ->',len\\(d['advertisements']\\),d['meta']\\); print\\([a['publication_date'] for a in d['advertisements'][:3]]\\)\")",
+      "PowerShell(python -m przetargi fetch --source bk)",
+      "Bash(curl -s -A \"przetargi-monitor/0.1\" \"https://bazakonkurencyjnosci.funduszeeuropejskie.gov.pl/api/announcements/search?page=1&limit=200&sort=publicationDate&status%5B%5D=PUBLISHED\")",
+      "PowerShell(python -m przetargi show 296233)",
+      "PowerShell(python -m przetargi show 295367)",
+      "PowerShell(python -m przetargi review 296233 moze \"Łącko/Jazowsko \\(Sądecczyzna\\), aranżacja i wyposażenie 2 altan edukacyjnych, mała skala. Warunek \\(firma i projektant\\): min. 1 dokumentacja aranżacji/wyposażenia przestrzeni edukacyjnej, wystawienniczej, muzealnej, kulturalnej lub TURYSTYCZNEJ w 3 lata. Liczy się np. wnętrze pensjonatu? Cena 70%, doświadczenie 30% \\(1 dok. = 0 pkt, 2-3 = 15\\). Termin 04.11 11:00.\")",
+      "PowerShell(python -m przetargi review 295367 nie \"Bytom, Szyb Krystyna: wymagana dokumentacja dla obiektu z rejestru zabytków o wartości min. 100 tys. zł - biuro nie ma.\")",
+      "PowerShell(git push -q)"
     ]
   }
 }

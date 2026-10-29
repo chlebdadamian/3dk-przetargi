@@ -8,11 +8,12 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bzp, db, filters, jev, prices
+from . import bk, bzp, db, filters, jev, notice, prices
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
 REPORTS = ROOT / "data" / "raporty"
+OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE)  # ogłoszenia, na które można złożyć ofertę
 
 
 def load_env(path: Path) -> None:
@@ -24,10 +25,6 @@ def load_env(path: Path) -> None:
         if line and not line.startswith("#") and "=" in line:
             key, value = line.split("=", 1)
             os.environ.setdefault(key.strip(), value.strip().strip('"'))
-
-
-def tender_url(tender_id: str | None) -> str:
-    return f"https://ezamowienia.gov.pl/mp-client/search/list/{tender_id}" if tender_id else ""
 
 
 def local_time(iso: str | None) -> str:
@@ -47,6 +44,7 @@ def load_config(path: Path) -> dict:
 
 
 def score_row(row: dict, cfg: dict) -> None:
+    row["match_text"] = notice.match_text(row)
     row["score"], row["match_reason"] = filters.evaluate(row, cfg["filter"])
     row["matched"] = int(row["score"] >= cfg["filter"]["min_score"])
 
@@ -71,8 +69,40 @@ def windows(day_from: date, day_to: date) -> list[tuple[date, date]]:
     return out
 
 
+def fetch_bk(conn, cfg) -> list[dict]:
+    """Baza Konkurencyjności: cała lista otwartych, szczegóły tylko dla nowych kandydatów."""
+    items = bk.list_published()
+    known = {r[0] for r in conn.execute("SELECT notice_number FROM notices WHERE notice_type = ?",
+                                        (bk.NOTICE_TYPE,))}
+    candidates = []
+    for item in items:
+        row = bk.summary_row(item)
+        if row["notice_number"] in known:
+            continue
+        score_row(row, cfg)
+        if row["score"] > 0:
+            candidates.append(item)
+    print(f"  Baza Konkurencyjności: {len(items)} otwartych, nowych kandydatów: {len(candidates)}",
+          file=sys.stderr)
+    new_matches = []
+    for item in candidates:
+        row = bk.detail_row(item)
+        score_row(row, cfg)
+        db.upsert(conn, row)
+        conn.commit()
+        if row["matched"]:
+            new_matches.append(row)
+    return new_matches
+
+
 def cmd_fetch(args, cfg):
     conn = db.connect(DB_PATH)
+    bk_matches = fetch_bk(conn, cfg) if args.source in ("all", "bk") else []
+    if args.source == "bk":
+        print(f"Baza Konkurencyjności – nowe pasujące: {len(bk_matches)}")
+        for row in sorted(bk_matches, key=lambda r: -r["score"]):
+            print_notice(row)
+        return
     bzp.REQUEST_DELAY = cfg["fetch"].get("request_delay", bzp.REQUEST_DELAY)
     today = date.today()
     days = args.days or cfg["fetch"]["days_back"]
@@ -82,7 +112,7 @@ def cmd_fetch(args, cfg):
         ("TenderResultNotice", cfg["fetch"].get("result_cpv_codes", cfg["fetch"]["cpv_codes"]),
          windows(today - timedelta(days=result_days), today)),
     ]
-    seen, new_matches = set(), []
+    seen, new_matches = set(), bk_matches
     try:
         for notice_type, codes, wins in plan:
             for cpv in codes:
@@ -130,7 +160,7 @@ def cmd_fetch(args, cfg):
 
 def cmd_rescore(args, cfg):
     conn = db.connect(DB_PATH)
-    rows = conn.execute("SELECT * FROM notices WHERE notice_type = 'ContractNotice'").fetchall()
+    rows = conn.execute(f"SELECT * FROM notices WHERE notice_type IN {OPEN_TYPES}").fetchall()
     for r in rows:
         row = dict(r)
         score_row(row, cfg)
@@ -139,14 +169,14 @@ def cmd_rescore(args, cfg):
             (row["score"], row["matched"], row["match_reason"], row["notice_number"]),
         )
     conn.commit()
-    n = conn.execute("SELECT count(*) FROM notices WHERE matched = 1 AND notice_type = 'ContractNotice'").fetchone()[0]
+    n = conn.execute(f"SELECT count(*) FROM notices WHERE matched = 1 AND notice_type IN {OPEN_TYPES}").fetchone()[0]
     print(f"Przeliczono {len(rows)} ogłoszeń, pasujących: {n}")
 
 
 def print_notice(row, verdict=None):
     print(f"\n[{row['score']} pkt] {row['title'][:160]}")
     print(f"  {row['org_name']} ({row['org_city']}, {row['province']}) | termin ofert: {local_time(row['deadline'])}")
-    print(f"  {row['notice_number']} | {tender_url(row['tender_id'])}")
+    print(f"  {row['notice_number']} | {notice.url(row)}")
     print(f"  punkty: {row['match_reason']}")
     if row.get("fit"):
         print(f"  {jev_line(row)}")
@@ -164,11 +194,11 @@ def jev_line(row) -> str:
 
 def open_candidates(conn, include_all=False, include_expired=False, include_reviewed=True):
     """Pasujące = próg punktów albo Jev uznał za warte oferty (łapie nietypowe tytuły)."""
-    sql = """SELECT n.*, r.verdict, r.note, j.fit, j.fit_conf, j.architecture, j.scale, j.conditions_ok
+    sql = f"""SELECT n.*, r.verdict, r.note, j.fit, j.fit_conf, j.architecture, j.scale, j.conditions_ok
              FROM notices n
              LEFT JOIN reviews r ON r.notice_number = n.notice_number
              LEFT JOIN jev j ON j.notice_number = n.notice_number
-             WHERE n.notice_type = 'ContractNotice'"""
+             WHERE n.notice_type IN {OPEN_TYPES}"""
     params = []
     if not include_all:
         sql += " AND (n.matched = 1 OR j.fit = 'tak')"
@@ -194,7 +224,7 @@ def cmd_show(args, cfg):
     conn = db.connect(DB_PATH)
     row = find_notice(conn, args.ref)
     print_notice(row)
-    for name, body in bzp.sections(row["text"], limit=4000).items():
+    for name, body in notice.sections(row, limit=4000).items():
         print(f"\n## {name}\n{body}")
 
 
@@ -258,14 +288,14 @@ def cmd_report(args, cfg):
             f"- Numer: {row['notice_number']}",
             f"- Zamawiający: {row['org_name']}, {row['org_city']} ({row['province']})",
             f"- Termin składania ofert: {local_time(row['deadline'])}",
-            f"- Link: {tender_url(row['tender_id'])}",
+            f"- Link: {notice.url(row)}",
             f"- Punkty: {row['match_reason']}",
         ]
         if row["fit"]:
             lines.append(f"- {jev_line(row)}")
         if row["verdict"]:
             lines.append(f"- Dotychczasowa ocena: {row['verdict']} – {row['note'] or ''}")
-        for name, body in bzp.sections(row["text"]).items():
+        for name, body in notice.sections(row).items():
             lines += ["", f"**{name}:** {body}"]
         lines.append("")
         print_similar(conn, row, out=lines.append)
@@ -308,6 +338,8 @@ def main():
     f.add_argument("--days", type=int, help="ile dni wstecz (domyślnie z config.toml)")
     f.add_argument("--history", action="store_true", help="pobierz też rok ogłoszeń o wyniku (ceny)")
     f.add_argument("--wait", type=int, metavar="MIN", help="po blokadzie WAF odczekaj MIN minut i wznów")
+    f.add_argument("--source", choices=["all", "bzp", "bk"], default="all",
+                   help="bzp = e-Zamówienia, bk = Baza Konkurencyjności")
 
     sub.add_parser("rescore", help="przelicz punkty po zmianie config.toml (bez sieci)")
 

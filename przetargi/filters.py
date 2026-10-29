@@ -12,10 +12,11 @@ def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
         return 0, f"województwo {row['province']}"
 
     order_types = cfg.get("order_types") or []
-    if order_types and row["order_type"] not in order_types:
+    # brak typu = wstępny wiersz z listy BK, typ sprawdzimy po pobraniu szczegółów
+    if order_types and row["order_type"] and row["order_type"] not in order_types:
         return 0, f"typ {row['order_type']}"
 
-    title = row["title"].lower()
+    title = row.get("match_text", row["title"]).lower()
     excluded = _hits(title, cfg.get("exclude_keywords", []))
     if excluded:
         return 0, f"wykluczone: {', '.join(excluded)}"
@@ -44,6 +45,10 @@ def evaluate(row: dict, cfg: dict) -> tuple[int, str]:
     if cpv_hits:
         score += bonus["points"]
         reasons.append(f"CPV {', '.join(cpv_hits)} +{bonus['points']}")
+
+    # sama lokalizacja nie wystarcza – musi trafić przedmiot (słowa kluczowe lub CPV)
+    if not any(r.split(":")[0] in cfg.get("keywords", {}) for r in reasons) and not cpv_hits:
+        return 1, "; ".join(reasons + ["brak dopasowania przedmiotu"])
 
     value = cfg.get("value", {})
     if row.get("estimate") and value.get("max_value") and row["estimate"] > value["max_value"]:

@@ -11,7 +11,7 @@ import sqlite3
 import urllib.request
 from datetime import date, datetime, timezone
 
-from . import bzp
+from . import bk, notice
 
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
 
@@ -79,7 +79,7 @@ class JevClient:
 
 
 def state_for(row: dict) -> dict:
-    sec = bzp.sections(row["text"], limit=1500)
+    sec = notice.sections(row, limit=1500)
     return {
         "profil_biura": PROFILE,
         "przedmiot": row["title"],
@@ -120,9 +120,9 @@ def assess_pending(conn: sqlite3.Connection, limit: int | None = None) -> tuple[
         budget = min(budget, limit)
     rows = conn.execute(
         """SELECT n.* FROM notices n LEFT JOIN jev j ON j.notice_number = n.notice_number
-           WHERE n.notice_type = 'ContractNotice' AND n.score > 0 AND j.notice_number IS NULL
+           WHERE n.notice_type IN ('ContractNotice', ?) AND n.score > 0 AND j.notice_number IS NULL
              AND n.deadline >= ? ORDER BY n.score DESC LIMIT ?""",
-        (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), max(budget, 0)),
+        (bk.NOTICE_TYPE, datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), max(budget, 0)),
     ).fetchall()
     ok = bad = 0
     for r in rows:
