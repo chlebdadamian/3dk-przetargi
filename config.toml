@@ -36,8 +36,13 @@ result_cpv_codes = [
 ]
 
 # BIP-y na bip.malopolska.pl: jednostka -> miejscowość (do punktów za bliskość).
-# Brakuje m.in. Starego Sącza, Krynicy, Nowego Sącza, powiatu nowosądeckiego – inne systemy BIP.
+# Nazwy jednostek nie są jednolite (np. „nowysacz”, „starysacz”, „umkrynicazdroj”) –
+# nową sprawdzać przez https://bip.malopolska.pl/api/contexts/{nazwa}.
 [fetch.bip_units]
+nowysacz = "Nowy Sącz"
+nowosadecki = "Nowy Sącz"
+starysacz = "Stary Sącz"
+umkrynicazdroj = "Krynica-Zdrój"
 ugchelmiec = "Chełmiec"
 uglacko = "Łącko"
 ugpodegrodzie = "Podegrodzie"
