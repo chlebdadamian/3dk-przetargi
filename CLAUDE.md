@@ -16,7 +16,8 @@ python -m przetargi report [--all]                 # data/raporty/kandydaci-DATA
 python -m przetargi review <nr> tak|moze|nie "uzasadnienie"
 python -m przetargi partners [--province PL12]       # kto wygrywa przetargi projektowe (partnerzy)
 python -m przetargi outcomes                       # wyniki ocenionych przetargów
-python -m przetargi daily [--dry-run]              # automat: źródła + Jev + Telegram
+python -m przetargi daily [--dry-run]              # automat: źródła + Jev + Telegram/WhatsApp
+python -m przetargi notify ["tekst"]               # test powiadomień
 ```
 
 `<nr>` może być fragmentem numeru, np. `00506260`.

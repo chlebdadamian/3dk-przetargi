@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import (bip, bk, bzp, db, eligibility, filters, jev, market, marketplanet, notice, prices, pz, rss, sarp,
-               telegram)
+               telegram, whatsapp)
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
@@ -548,6 +548,29 @@ def notice_card(row) -> str:
     return "\n".join(lines)
 
 
+def notify(channels, text: str) -> None:
+    """Wysyła na wszystkie kanały; błąd jednego nie blokuje drugiego, ale gdy nie poszło nigdzie – wyjątek
+    (wtedy przetargi nie są oznaczane jako wysłane i pójdą przy następnym uruchomieniu)."""
+    errors = []
+    for channel in channels:
+        try:
+            channel.send(text)
+        except OSError as e:
+            errors.append(f"{channel.__name__.split('.')[-1]}: {e}")
+            print(f"Nie wysłano – {errors[-1]}", file=sys.stderr)
+    if len(errors) == len(channels):
+        raise OSError("; ".join(errors))
+
+
+def cmd_notify(args, cfg):
+    """Wiadomość testowa na skonfigurowane kanały."""
+    channels = [c for c in (telegram, whatsapp) if c.configured()]
+    if not channels:
+        sys.exit("Brak kanału w .env (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID albo WHATSAPP_PHONE/WHATSAPP_APIKEY)")
+    notify(channels, html.escape(args.text))
+    print("Wysłano: " + ", ".join(c.__name__.split(".")[-1] for c in channels))
+
+
 def cmd_daily(args, cfg):
     """Automat: pobierz źródła (bez platformazakupowa – osobne zadanie), Jev, powiadomienie o nowych."""
     conn = db.connect(DB_PATH)
@@ -598,10 +621,11 @@ def cmd_daily(args, cfg):
     if problems:
         parts.append("⚠️ " + "\n⚠️ ".join(html.escape(p) for p in problems))
     text = "\n\n".join(parts)
-    if args.dry_run or not telegram.configured():
-        print(text if args.dry_run else "Brak TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID w .env:\n" + text)
+    channels = [c for c in (telegram, whatsapp) if c.configured()]
+    if args.dry_run or not channels:
+        print(text if args.dry_run else "Brak kanału powiadomień (Telegram / WhatsApp) w .env:\n" + text)
         return
-    telegram.send(text)
+    notify(channels, text)
     now = datetime.now().isoformat(timespec="seconds")
     conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)", [(r["notice_number"], now) for r in new])
     conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)",
@@ -689,8 +713,11 @@ def main():
 
     sub.add_parser("outcomes", help="wyniki ocenionych przetargów: kto wygrał i za ile")
 
-    d = sub.add_parser("daily", help="automat: pobierz, Jev, powiadom na Telegram o nowych")
+    d = sub.add_parser("daily", help="automat: pobierz, Jev, powiadom (Telegram / WhatsApp) o nowych")
     d.add_argument("--dry-run", action="store_true", help="tylko pokaż wiadomość, nie wysyłaj")
+
+    n = sub.add_parser("notify", help="wiadomość testowa na Telegram / WhatsApp")
+    n.add_argument("text", nargs="?", default="Test powiadomień przetargów ✅")
 
     args = p.parse_args()
     load_env(ROOT / ".env")
@@ -699,6 +726,7 @@ def main():
         "fetch": cmd_fetch, "rescore": cmd_rescore, "jev": cmd_jev, "list": cmd_list, "show": cmd_show,
         "similar": cmd_similar, "prices": cmd_prices, "report": cmd_report, "review": cmd_review,
         "daily": cmd_daily, "partners": cmd_partners, "outcomes": cmd_outcomes,
+        "notify": cmd_notify,
     }
     commands[args.cmd](args, cfg)
 
