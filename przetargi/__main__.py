@@ -222,6 +222,12 @@ def cmd_fetch(args, cfg):
                             print(f"  403 z WAF – czekam {args.wait} min ({datetime.now():%H:%M})",
                                   file=sys.stderr, flush=True)
                             time.sleep(args.wait * 60)
+                        except OSError as e:  # chwilowy brak sieci / DNS – przy --wait przeczekujemy
+                            if not args.wait:
+                                raise
+                            print(f"  błąd sieci ({e}) – czekam 5 min ({datetime.now():%H:%M})",
+                                  file=sys.stderr, flush=True)
+                            time.sleep(300)
                     print(f"  {notice_type} {cpv} {w_from}–{w_to}: {len(items)}", file=sys.stderr)
                     for item in items:
                         if item["noticeNumber"] in seen:
