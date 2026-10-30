@@ -171,6 +171,14 @@ cities = [
 org_words = [
   "nowosądeck", "limanowsk", "gorlick", "krakowsk", "wielick", "myślenick", "bocheńsk",
   "nowotarsk", "tatrzańsk", "tarnowsk", "brzesk", "suski", "wadowick", "małopolsk",
+  # rdzenie odporne na odmianę („Urząd Miasta Nowego Sącza”, „Gmina Łącko”, „w Krynicy-Zdroju”)
+  "sącz", "krynic", "muszyn", "piwniczn", "rytr", "łąck", "podegrodz", "nawojow", "chełmiec",
+  "łabow", "kamionk", "korzenn", "łososin", "grybów", "grybow", "limanow", "laskow", "tymbark",
+  "łukowic", "mszan", "jodłownik", "lipnic", "gorlic", "biecz", "sękow", "uście gorlick",
+  "kraków", "krakow", "wielicz", "niepołomic", "skawin", "myślenic", "dobczyc", "zabierzów",
+  "zabierzow", "liszk", "mogilan", "czernichów", "kocmyrzów", "gdów", "kłaj", "siepraw",
+  "świątnik", "pcim", "tokarni", "bochni", "zakopan", "nowy targ", "nowego targu", "szczawnic",
+  "zielonk", "wieliczk", "tarnow",
 ]
 
 # Punkty za słowa w przedmiocie zamówienia (każda grupa liczy się raz).
