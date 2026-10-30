@@ -102,6 +102,11 @@ uglipinki = "Lipinki"
 umbiecz = "Biecz"
 ugnowytarg = "Nowy Targ"
 
+[fetch.pz.organizers]
+# Profile zamawiających (https://platformazakupowa.pl/pn/{nazwa}) – każdy = 1 zapytanie (15 min).
+nowysacz = { name = "Urząd Miasta Nowego Sącza", city = "Nowy Sącz" }
+krynica_zdroj = { name = "Urząd Miejski w Krynicy-Zdroju", city = "Krynica-Zdrój" }
+
 [fetch.pz]
 # Frazy dla wyszukiwarki platformazakupowa.pl (każda = 1 zapytanie, 15 min przerwy).
 queries = ["projekt", "dokumentacji projektowej", "koncepcji", "nadzór autorski"]

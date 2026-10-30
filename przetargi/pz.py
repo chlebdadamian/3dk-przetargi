@@ -34,7 +34,7 @@ def _get(path: str, params: dict) -> str:
     wait = _last_request + CRAWL_DELAY - time.monotonic()
     if _last_request and wait > 0:
         time.sleep(wait)
-    url = f"{BASE}{path}?{urllib.parse.urlencode(params)}"
+    url = f"{BASE}{path}" + (f"?{urllib.parse.urlencode(params)}" if params else "")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
@@ -49,6 +49,26 @@ def search(query: str) -> list[dict]:
     for pid, title, org, deadline in ITEM_RE.findall(html):
         title = re.sub(r"\s*\(ID \d+\)\s*$", "", unescape(re.sub(r"\s+", " ", title))).strip()
         out.append({"id": pid, "title": title, "org": unescape(org).strip(), "deadline": deadline})
+    return out
+
+
+ROW_RE = re.compile(
+    r"<tr>\s*<td>(\d+)</td>\s*<td>(.*?)</td>\s*<td>.*?</td>\s*<td>([\d-]+ [\d:]+)</td>\s*<td>.*?</td>\s*"
+    r'<td class="text-center">(.*?)</td>',
+    re.S,
+)
+CATEGORIES = {"Usługa": "Services", "Robota budowlana": "Works", "Dostawa": "Supplies"}
+
+
+def organizer(slug: str) -> list[dict]:
+    """Postępowania jednego zamawiającego (/pn/{slug}/proceedings) – z rodzajem zamówienia."""
+    html = _get(f"/pn/{slug}/proceedings", {})
+    out = []
+    for pid, title, deadline, category in ROW_RE.findall(html):
+        category = unescape(category).strip()
+        out.append({"id": pid, "title": unescape(re.sub(r"\s+", " ", title)).strip(), "org": "",
+                     "deadline": datetime.strptime(deadline, "%Y-%m-%d %H:%M").strftime("%d-%m-%Y %H:%M:%S"),
+                     "order_type": CATEGORIES.get(category, category)})
     return out
 
 
@@ -67,7 +87,7 @@ def row(item: dict) -> dict:
         "org_name": item["org"],
         "org_city": None,  # nieznane – bliskość szukamy w nazwie zamawiającego
         "province": None,
-        "order_type": None,
+        "order_type": item.get("order_type"),
         "cpv": "",
         "deadline": local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "published": None,

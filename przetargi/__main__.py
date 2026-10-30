@@ -121,16 +121,22 @@ def fetch_sarp(conn, cfg) -> list[dict]:
 
 
 def fetch_pz(conn, cfg) -> list[dict]:
-    """platformazakupowa.pl: kilka fraz, 15 min przerwy między zapytaniami (robots.txt)."""
+    """platformazakupowa.pl: profile wybranych gmin + kilka fraz w wyszukiwarce,
+    15 min przerwy między zapytaniami (robots.txt)."""
     new_matches, seen = [], set()
-    for query in cfg["fetch"]["pz"]["queries"]:
-        items = pz.search(query)
-        print(f"  platformazakupowa '{query}': {len(items)} ({datetime.now():%H:%M})", file=sys.stderr, flush=True)
+    sources = [(f"profil {slug}", lambda s=slug: pz.organizer(s), org)
+               for slug, org in cfg["fetch"]["pz"].get("organizers", {}).items()]
+    sources += [(f"'{q}'", lambda q=q: pz.search(q), None) for q in cfg["fetch"]["pz"]["queries"]]
+    for label, get, org in sources:
+        items = get()
+        print(f"  platformazakupowa {label}: {len(items)} ({datetime.now():%H:%M})", file=sys.stderr, flush=True)
         for item in items:
             if item["id"] in seen:
                 continue
             seen.add(item["id"])
             row = pz.row(item)
+            if org:  # profil gminy: znamy zamawiającego i miejscowość
+                row.update(org_name=org["name"], org_city=org["city"], province="PL12")
             score_row(row, cfg)
             if db.upsert(conn, row) and row["matched"]:
                 new_matches.append(row)
