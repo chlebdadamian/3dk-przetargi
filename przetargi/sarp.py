@@ -12,6 +12,7 @@ import urllib.request
 from datetime import datetime
 from html import unescape
 
+from . import docs
 from .bzp import USER_AGENT
 
 BASE = "https://www.sarp.pl"
@@ -66,7 +67,7 @@ def entry_row(pid: str, path: str) -> dict:
         "order_type": None,
         "cpv": "",
         "published": published,
-        "deadline": None,  # terminy są na stronie konkursu
+        "deadline": docs.deadline(body),  # jeśli opis go podaje; inaczej jest na stronie konkursu
         "text": json.dumps({"opis": body, "strona_konkursu": site.group(0) if site else ""}, ensure_ascii=False),
         "estimate": None,
         "fetched_at": datetime.now().isoformat(timespec="seconds"),

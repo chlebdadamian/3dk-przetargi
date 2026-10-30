@@ -10,10 +10,12 @@ import os
 import sqlite3
 import urllib.request
 from datetime import date, datetime, timezone
+from pathlib import Path
 
-from . import bk, notice
+from . import bk, eligibility, notice
 
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
+PORTFOLIO = Path(__file__).resolve().parent.parent / "portfolio.toml"
 
 PROFILE = (
     "Małe biuro architektoniczne z Krakowa i Nowego Sącza (architekt + podwykonawcy branżowi: "
@@ -81,8 +83,10 @@ class JevClient:
 
 def state_for(row: dict) -> dict:
     sec = notice.sections(row, limit=1500)
+    portfolio = eligibility.load(PORTFOLIO)
     return {
-        "profil_biura": PROFILE,
+        "profil_biura": f"{PROFILE} {eligibility.summary(portfolio)}".strip(),
+        "sprawdzenie_warunkow": eligibility.check(notice.sections(row, limit=6000).get("warunki", ""), portfolio),
         "przedmiot": row["title"],
         "zamawiajacy": f"{row['org_name']}, {row['org_city']}",
         "opis": sec.get("opis", ""),

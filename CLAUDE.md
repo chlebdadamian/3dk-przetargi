@@ -30,6 +30,14 @@ python -m przetargi review <nr> tak|moze|nie "uzasadnienie"
 
 `fetch` bez `--source` pobiera wszystko; przez platformazakupowa trwa to ~45 min.
 
+## Karta doświadczenia i załączniki
+
+- `portfolio.toml` (poza gitem, wzór: `portfolio.example.toml`) – projekty biura; `eligibility.py` porównuje
+  z nimi warunki udziału („Doświadczenie wg karty” w raporcie, dane dla Jev). „SPEŁNIA” tylko przy mierzalnym
+  kryterium (kubatura, wartość, powierzchnia, obiekt publiczny, zabytek); rodzaj usługi zawsze sprawdzić w treści.
+- `docs.py` – tekst z PDF/DOCX (zależność: `pypdf`, `pip install -r requirements.txt`), termin składania ofert
+  i warunki z załączników BIP; termin zgłoszeń w konkursach SARP.
+
 ## API BZP
 
 - `https://ezamowienia.gov.pl/mo-board/api/v1/notice` – publiczne, bez klucza.

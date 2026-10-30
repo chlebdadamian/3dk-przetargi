@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS notified (
     notified_at   TEXT
 );
 
+-- Wysłane przypomnienia o terminie (etap: 3d / 1d)
+CREATE TABLE IF NOT EXISTS reminders (
+    notice_number TEXT NOT NULL,
+    stage         TEXT NOT NULL,
+    sent_at       TEXT,
+    PRIMARY KEY (notice_number, stage)
+);
+
 -- Ocena przetargu (robiona w Claude Code): tak / moze / nie
 CREATE TABLE IF NOT EXISTS reviews (
     notice_number TEXT PRIMARY KEY,

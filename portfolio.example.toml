@@ -1,0 +1,24 @@
+# Wzór karty doświadczenia – skopiuj do portfolio.toml (poza gitem) i uzupełnij.
+
+[osoba]
+imie_nazwisko = ""
+uprawnienia = "projektowanie bez ograniczeń w specjalności architektonicznej"
+uprawnienia_od_roku = 0           # TODO
+izba = "Małopolska Okręgowa Izba Architektów RP"   # TODO: potwierdzić
+
+[[projekt]]
+nazwa = "Nazwa projektu"
+miejscowosc = ""
+rok_zakonczenia = 0               # TODO
+rodzaj = "budowa"                 # budowa / przebudowa / rozbudowa / nadbudowa / termomodernizacja / wnętrza / elewacja
+obiekt = "dom jednorodzinny"
+publiczny = false                 # budynek użyteczności publicznej?
+zabytek = false
+powierzchnia_m2 = 0
+kubatura_m3 = 0                   # TODO – ważne: częsty warunek („obiekt min. 2000 m³”)
+wartosc_zl = 0                    # TODO – wartość zlecenia projektowego
+zakres = ["koncepcja", "projekt budowlany", "projekt wykonawczy", "wizualizacje", "nadzór autorski"]  # TODO: potwierdzić
+kosztorys = false                 # czy w zakresie był kosztorys (zlecany podwykonawcy)
+inwestor = ""
+referencja = false                # czy jest referencja / protokół odbioru
+

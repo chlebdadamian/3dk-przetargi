@@ -10,10 +10,11 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bip, bk, bzp, db, filters, jev, notice, prices, pz, sarp, telegram
+from . import bip, bk, bzp, db, eligibility, filters, jev, notice, prices, pz, sarp, telegram
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
+PORTFOLIO = ROOT / "portfolio.toml"  # karta doświadczenia (poza gitem)
 REPORTS = ROOT / "data" / "raporty"
 # ogłoszenia, na które można złożyć ofertę
 OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE)
@@ -402,6 +403,7 @@ def cmd_report(args, cfg):
     """Raport kandydatów do oceny w Claude Code (markdown)."""
     conn = db.connect(DB_PATH)
     rows = open_candidates(conn, include_reviewed=args.all)
+    portfolio = eligibility.load(PORTFOLIO)
     REPORTS.mkdir(parents=True, exist_ok=True)
     path = REPORTS / f"kandydaci-{date.today().isoformat()}.md"
     lines = [f"# Kandydaci do oceny – {date.today().isoformat()}", "", f"Liczba: {len(rows)}", ""]
@@ -417,6 +419,9 @@ def cmd_report(args, cfg):
         ]
         if row["fit"]:
             lines.append(f"- {jev_line(row)}")
+        conditions = notice.sections(row, limit=6000).get("warunki", "")
+        if conditions:
+            lines.append(f"- Doświadczenie wg karty: {eligibility.check(conditions, portfolio)}")
         if row["verdict"]:
             lines.append(f"- Dotychczasowa ocena: {row['verdict']} – {row['note'] or ''}")
         for name, body in notice.sections(row).items():
@@ -475,22 +480,47 @@ def cmd_daily(args, cfg):
 
     done = {r[0] for r in conn.execute("SELECT notice_number FROM notified")}
     new = [r for r in open_candidates(conn, include_reviewed=False) if r["notice_number"] not in done]
-    if not new and not problems:
-        print("Brak nowych przetargów.")
+    reminders = due_reminders(conn)
+    if not new and not reminders and not problems:
+        print("Brak nowych przetargów i przypomnień.")
         return
-    text = f"🏗 <b>Nowe przetargi: {len(new)}</b>\nOcena: /przetargi w Claude Code"
+    parts = []
+    if reminders:
+        parts.append(f"⏰ <b>Zbliża się termin: {len(reminders)}</b>\n\n" + "\n\n".join(
+            f"{'❗ JUTRO' if stage == '1d' else 'za 3 dni'} · ocena: {row['verdict']}\n{notice_card(row)}"
+            for row, stage in reminders))
     if new:
-        text += "\n\n" + "\n\n".join(notice_card(r) for r in new)
+        parts.append(f"🏗 <b>Nowe przetargi: {len(new)}</b>\nOcena: /przetargi w Claude Code\n\n"
+                     + "\n\n".join(notice_card(r) for r in new))
     if problems:
-        text += "\n\n⚠️ " + "\n⚠️ ".join(html.escape(p) for p in problems)
+        parts.append("⚠️ " + "\n⚠️ ".join(html.escape(p) for p in problems))
+    text = "\n\n".join(parts)
     if args.dry_run or not telegram.configured():
         print(text if args.dry_run else "Brak TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID w .env:\n" + text)
         return
     telegram.send(text)
     now = datetime.now().isoformat(timespec="seconds")
     conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)", [(r["notice_number"], now) for r in new])
+    conn.executemany("INSERT OR IGNORE INTO reminders VALUES (?, ?, ?)",
+                     [(r["notice_number"], stage, now) for r, stage in reminders])
     conn.commit()
-    print(f"Wysłano powiadomienie: {len(new)} przetargów")
+    print(f"Wysłano: {len(new)} nowych, {len(reminders)} przypomnień")
+
+
+def due_reminders(conn) -> list[tuple[dict, str]]:
+    """Przetargi ocenione tak/moze z terminem w ciągu 3 dni (etap 3d) lub 1 dnia (etap 1d),
+    o których przypomnienie danego etapu jeszcze nie poszło."""
+    now = datetime.now(timezone.utc)
+    sent = {(r[0], r[1]) for r in conn.execute("SELECT notice_number, stage FROM reminders")}
+    out = []
+    for row in open_candidates(conn, include_all=True):
+        if row["verdict"] not in ("tak", "moze") or not row["deadline"]:
+            continue
+        left = datetime.fromisoformat(row["deadline"].replace("Z", "+00:00")) - now
+        stage = "1d" if left <= timedelta(days=1) else "3d" if left <= timedelta(days=3) else None
+        if stage and (row["notice_number"], stage) not in sent:
+            out.append((row, stage))
+    return out
 
 
 def cmd_review(args, cfg):

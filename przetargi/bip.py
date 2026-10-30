@@ -11,9 +11,11 @@ import json
 import re
 import time
 import urllib.request
+import urllib.robotparser
 from datetime import datetime
 from html import unescape
 
+from . import docs
 from .bzp import USER_AGENT
 
 BASE = "https://bip.malopolska.pl"
@@ -26,6 +28,8 @@ ARTICLES_PER_SECTION = 20
 SECTION_RE = re.compile(r"zapytani|zamówieni|zamowieni|przetarg", re.I)
 SKIP_RE = re.compile(r"wynik|zawarci|plan|nabór|nabor|zgromadz|platforma|archiw|rejestr|sprawozd|unieważ", re.I)
 CLOSED_RE = re.compile(r"wybor|wybór|wynik|uniewa", re.I)
+# załączniki bez treści merytorycznej
+SKIP_FILE_RE = re.compile(r"rodo|klauzul|formularz|oświadcz|oswiadcz|wzór|wzor|projekt umowy|wynik|wybor|wybór", re.I)
 # gminy często dopisują wynik do treści tego samego artykułu
 CLOSED_TEXT_RE = re.compile(r"informacja o wyniku|informacja o wyborze|wybrano ofert|unieważni", re.I)
 
@@ -92,13 +96,55 @@ def row(item: dict, unit_name: str, city: str) -> dict:
     }
 
 
+_robots = None
+
+
+def _allowed(url: str) -> bool:
+    """robots.txt platformy blokuje pojedyncze pliki – szanujemy to przy pobieraniu załączników."""
+    global _robots
+    if _robots is None:
+        _robots = urllib.robotparser.RobotFileParser()
+        req = urllib.request.Request(f"{BASE}/robots.txt", headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            _robots.parse(resp.read().decode("utf-8", "replace").splitlines())
+    return _robots.can_fetch(USER_AGENT, url)
+
+
+def _attachment_text(link: str, ext: str) -> str:
+    url = f"{BASE}/{link}"
+    if not _allowed(url):
+        return ""
+    time.sleep(REQUEST_DELAY)
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = resp.read()
+    return docs.text(data, ext)
+
+
 def add_details(r: dict) -> None:
-    """Dla kandydata: treść artykułu i lista załączników (po nich widać, czy już rozstrzygnięte)."""
+    """Dla kandydata: treść artykułu, załączniki (PDF/DOCX) z terminem i warunkami,
+    oraz czy już rozstrzygnięte."""
     art = _get(f"articles/{r['notice_number'].split('/')[1]}")
-    files = [f"{a.get('name')}.{a.get('extension')}" for a in art.get("attachments") or []]
+    attachments = art.get("attachments") or []
+    files = [f"{a.get('name')}.{a.get('extension')}" for a in attachments]
+    texts = []
+    for a in attachments:
+        name, ext = a.get("name") or "", (a.get("extension") or "").lower()
+        if ext in ("pdf", "docx") and not SKIP_FILE_RE.search(name) and len(texts) < 3:
+            try:
+                texts.append(_attachment_text(a["link"], ext))
+            except (OSError, ValueError) as e:
+                texts.append(f"[{name}: nie udało się odczytać: {e}]")
+    attached = "\n".join(t for t in texts if t)
+    deadline = docs.deadline(attached)
+    if deadline:
+        r["deadline"] = deadline
     r["text"] = json.dumps({
         "opis": _clean(art.get("content")),
         "zalaczniki": ", ".join(files),
+        "termin": docs.deadline_text(attached),
+        "warunki": docs.snippet(attached, docs.CONDITIONS_RE),
+        "z_zalacznika": attached[:2500],
     }, ensure_ascii=False)
     content = _clean(art.get("content"))
     if any(CLOSED_RE.search(f) for f in files) or CLOSED_TEXT_RE.search(content):

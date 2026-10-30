@@ -48,6 +48,8 @@ Werdykt `tak` / `moze` / `nie`, kierując się:
   prywatnych → plus. Wymóg projektów „budynku użyteczności publicznej” o określonej skali → zwykle
   `nie`, chyba że da się użyć zasobów podwykonawcy/partnera (art. 118 Pzp) – wtedy `moze` z adnotacją.
   Kryterium „doświadczenie projektanta” liczy osoby, nie firmę – sprawdź, czy liczą też projekty prywatne.
+- **Doświadczenie wg karty** – linia w raporcie z `portfolio.toml`. „NIE WIADOMO” = brakuje danych w karcie –
+  powiedz użytkownikowi, co uzupełnić. „DO SPRAWDZENIA” = porównaj rodzaj usługi ręcznie.
 - **Termin** – ile dni zostało na ofertę; okres realizacji vs. zakres.
 - **Pieniądze i konkurencja** – mediana cen podobnych zleceń i liczba ofert. Dużo ofert = presja cenowa.
 - **Lokalizacja** – Kraków/Sądecczyzna najlepiej; dalej tylko przy dobrym dopasowaniu.
