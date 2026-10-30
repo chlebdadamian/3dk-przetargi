@@ -2,10 +2,10 @@
 
 import json
 
-from . import bip, bk, bzp, pz, sarp
+from . import bip, bk, bzp, pz, rss, sarp
 
 # Źródła, które trzymają sekcje jako JSON w kolumnie text (BZP ma pełny tekst ogłoszenia).
-JSON_TEXT = {bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE}
+JSON_TEXT = {bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE, rss.NOTICE_TYPE}
 
 
 def sections(row: dict, limit: int = 1500) -> dict[str, str]:
@@ -35,5 +35,7 @@ def url(row: dict) -> str:
         return sarp.url(row["object_id"])
     if kind == bip.NOTICE_TYPE:
         return bip.url(row["object_id"])
+    if kind == rss.NOTICE_TYPE:
+        return row["object_id"]
     tid = row.get("tender_id")
     return f"https://ezamowienia.gov.pl/mp-client/search/list/{tid}" if tid else ""

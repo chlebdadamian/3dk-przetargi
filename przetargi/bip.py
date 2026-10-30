@@ -45,20 +45,38 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", text or ""))).strip()
 
 
+def _children(node_id: str) -> list[dict]:
+    """Główne drzewo menu nie zawiera podkategorii działów (np. folderów lat) – dociągamy je osobno."""
+    def find(nodes):
+        for n in nodes or []:
+            if str(n["id"]) == str(node_id):
+                return n
+            if found := find(n.get("children")):
+                return found
+    node = find(_get(f"menu/{node_id}"))
+    return (node or {}).get("children") or []
+
+
 def sections(unit: str) -> tuple[str, list[str]]:
-    """(nazwa jednostki, targetId działów z zamówieniami)."""
+    """(nazwa jednostki, targetId działów z zamówieniami, łącznie z podkategoriami)."""
     ctx = _get(f"contexts/{unit}")
     targets = []
+    year = datetime.now().year
 
-    def walk(nodes, inside):
+    def walk(nodes, inside, depth):
         for n in nodes or []:
-            name = n.get("name") or ""
-            match = inside or bool(SECTION_RE.search(name))
-            if match and not SKIP_RE.search(name):
+            name = (n.get("name") or "").strip()
+            if re.fullmatch(r"\d{4}", name) and int(name) < year - 1:
+                continue  # archiwalne foldery lat
+            match = (inside or bool(SECTION_RE.search(name))) and not SKIP_RE.search(name)
+            children = n.get("children")
+            if match:
                 targets.append(str(n["targetId"]))
-            walk(n.get("children"), match and not SKIP_RE.search(name))
+                if children is None and n.get("type") == "D" and depth < 3:
+                    children = _children(n["id"])
+            walk(children, match, depth + 1)
 
-    walk(_get(f"menu/{ctx['defaultMenuId']}"), False)
+    walk(_get(f"menu/{ctx['defaultMenuId']}"), False, 0)
     return ctx.get("unitFullName") or ctx.get("siteTitle") or unit, list(dict.fromkeys(targets))
 
 

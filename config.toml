@@ -177,6 +177,10 @@ ugjordanow = "Jordanów"
 umjordanow = "Jordanów"
 ugspytkowice = "Spytkowice"
 
+[fetch.rss]
+# Kanały RSS serwisów przetargowych gmin: adres -> zamawiający i miejscowość.
+"https://przetargi.myslenice.pl/feed/" = { org = "Gmina Myślenice", city = "Myślenice" }
+
 [fetch.pz.organizers]
 # Profile zamawiających (https://platformazakupowa.pl/pn/{nazwa}) – każdy = 1 zapytanie (15 min).
 nowysacz = { name = "Urząd Miasta Nowego Sącza", city = "Nowy Sącz" }

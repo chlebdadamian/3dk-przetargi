@@ -10,16 +10,16 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bip, bk, bzp, db, eligibility, filters, jev, market, notice, prices, pz, sarp, telegram
+from . import bip, bk, bzp, db, eligibility, filters, jev, market, notice, prices, pz, rss, sarp, telegram
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
 PORTFOLIO = ROOT / "portfolio.toml"  # karta doświadczenia (poza gitem)
 REPORTS = ROOT / "data" / "raporty"
 # ogłoszenia, na które można złożyć ofertę
-OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE)
+OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE, rss.NOTICE_TYPE)
 # źródła bez terminu w danych: aktualne tyle dni od publikacji
-NO_DEADLINE_DAYS = {sarp.NOTICE_TYPE: 60, bip.NOTICE_TYPE: bip.OPEN_DAYS}
+NO_DEADLINE_DAYS = {sarp.NOTICE_TYPE: 60, bip.NOTICE_TYPE: bip.OPEN_DAYS, rss.NOTICE_TYPE: rss.OPEN_DAYS}
 
 
 def load_env(path: Path) -> None:
@@ -145,6 +145,30 @@ def fetch_pz(conn, cfg) -> list[dict]:
     return new_matches
 
 
+def fetch_rss(conn, cfg) -> list[dict]:
+    """Kanały RSS serwisów przetargowych gmin (config: [fetch.rss])."""
+    known = {r[0] for r in conn.execute("SELECT notice_number FROM notices WHERE notice_type = ?",
+                                        (rss.NOTICE_TYPE,))}
+    new_matches = []
+    for url, feed in cfg["fetch"].get("rss", {}).items():
+        try:
+            entries = rss.items(url)
+        except (OSError, ValueError) as e:
+            print(f"  RSS {url}: błąd {e}", file=sys.stderr)
+            continue
+        for item in entries:
+            row = rss.row(item, feed["org"], feed["city"])
+            if row["notice_number"] in known:
+                continue
+            score_row(row, cfg)
+            db.upsert(conn, row)
+            if row["matched"]:
+                new_matches.append(row)
+        conn.commit()
+        print(f"  RSS {feed['org']}: {len(entries)} wpisów", file=sys.stderr)
+    return new_matches
+
+
 def fetch_bip(conn, cfg) -> list[dict]:
     """BIP-y gmin: nowe artykuły w działach zamówień; szczegóły tylko dla pasujących."""
     known = {r[0] for r in conn.execute("SELECT notice_number FROM notices WHERE notice_type = ?",
@@ -176,6 +200,8 @@ def fetch_bip(conn, cfg) -> list[dict]:
 def cmd_fetch(args, cfg):
     conn = db.connect(DB_PATH)
     extra = []
+    if args.source in ("all", "rss"):
+        extra += fetch_rss(conn, cfg)
     if args.source in ("all", "bip"):
         extra += fetch_bip(conn, cfg)
     if args.source in ("all", "bk"):
@@ -502,7 +528,8 @@ def cmd_daily(args, cfg):
     """Automat: pobierz źródła (bez platformazakupowa – osobne zadanie), Jev, powiadomienie o nowych."""
     conn = db.connect(DB_PATH)
     problems = []
-    for name, fn in (("BIP", fetch_bip), ("Baza Konkurencyjności", fetch_bk), ("SARP", fetch_sarp)):
+    for name, fn in (("BIP", fetch_bip), ("RSS gmin", fetch_rss), ("Baza Konkurencyjności", fetch_bk),
+                     ("SARP", fetch_sarp)):
         try:
             fn(conn, cfg)
         except (OSError, ValueError, KeyError) as e:
@@ -600,7 +627,7 @@ def main():
     f.add_argument("--days", type=int, help="ile dni wstecz (domyślnie z config.toml)")
     f.add_argument("--history", action="store_true", help="pobierz też rok ogłoszeń o wyniku (ceny)")
     f.add_argument("--wait", type=int, metavar="MIN", help="po blokadzie WAF odczekaj MIN minut i wznów")
-    f.add_argument("--source", choices=["all", "bzp", "bk", "pz", "sarp", "bip"], default="all",
+    f.add_argument("--source", choices=["all", "bzp", "bk", "pz", "sarp", "bip", "rss"], default="all",
                    help="bzp = e-Zamówienia, bk = Baza Konkurencyjności, pz = platformazakupowa.pl "
                         "(wolne: 15 min między zapytaniami), sarp = konkursy SARP, bip = BIP-y gmin")
 
