@@ -10,7 +10,7 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bip, bk, bzp, db, eligibility, filters, jev, notice, prices, pz, sarp, telegram
+from . import bip, bk, bzp, db, eligibility, filters, jev, market, notice, prices, pz, sarp, telegram
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
@@ -286,7 +286,8 @@ def mark_duplicates(conn) -> set[str]:
 
 def cmd_rescore(args, cfg):
     conn = db.connect(DB_PATH)
-    rows = conn.execute(f"SELECT * FROM notices WHERE notice_type IN {OPEN_TYPES}").fetchall()
+    # także ogłoszenia o wyniku – na ich punktach opiera się analiza cen i partnerów
+    rows = conn.execute(f"SELECT * FROM notices WHERE notice_type IN {OPEN_TYPES + ('TenderResultNotice',)}").fetchall()
     for r in rows:
         row = dict(r)
         score_row(row, cfg)
@@ -450,6 +451,41 @@ def cmd_jev(args, cfg):
         print(f"  {verdict}: {n}")
 
 
+def cmd_partners(args, cfg):
+    """Kto wygrywa przetargi projektowe w regionie – kandydaci na partnerów do konsorcjów."""
+    conn = db.connect(DB_PATH)
+    provinces = args.province or ["PL12"]
+    firms = market.partners(conn, provinces, top=args.top)
+    lines = [f"# Partnerzy do konsorcjów – {', '.join(provinces)}, ostatnie 12 mies. ({date.today()})", "",
+             "Zwycięzcy przetargów projektowych na budynki (bez dróg i sieci – ten sam filtr co dla ofert).",
+             "Ich doświadczenie (art. 118 Pzp) lub wspólna oferta otwiera przetargi z progami doświadczenia.", ""]
+    for f in firms:
+        lines += [f"## {f['name']} – {f['wins']} wygr.",
+                  f"- {f['city'] or '?'} · NIP {f['nip'] or '?'} · mediana {prices.zl(f['median'])}, "
+                  f"max {prices.zl(f['max'])}" + (f" · śr. ofert {f['offers_avg']:.1f}" if f["offers_avg"] else "")]
+        for w in f["examples"]:
+            lines.append(f"  - {prices.zl(w['price_winner'])} · {w['org_name']} · {w['title'][:110]}")
+        lines.append("")
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    path = REPORTS / f"partnerzy-{date.today().isoformat()}.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print("\n".join(lines[:60]))
+    print(f"\n… pełna lista: {path}")
+
+
+def cmd_outcomes(args, cfg):
+    """Jak skończyły się ocenione przetargi: zwycięzca, cena, liczba ofert."""
+    conn = db.connect(DB_PATH)
+    for row, result in market.outcomes(conn):
+        print(f"\n[{row['verdict']}] {row['title'][:120]}")
+        print(f"  {row['org_name']} · termin {local_time(row['deadline'])}")
+        if result:
+            print(f"  WYNIK: {result['winner'] or result['procedure_result']} · {prices.zl(result['price_winner'])} "
+                  f"(min {prices.zl(result['price_min'])}, max {prices.zl(result['price_max'])}) · ofert {result['offers']}")
+        else:
+            print("  wyniku jeszcze brak w bazie")
+
+
 def notice_card(row) -> str:
     """Karta przetargu do Telegrama (HTML); każda linia zamyka swoje tagi."""
     e = html.escape
@@ -487,7 +523,10 @@ def cmd_daily(args, cfg):
     done = {r[0] for r in conn.execute("SELECT notice_number FROM notified")}
     new = [r for r in open_candidates(conn, include_reviewed=False) if r["notice_number"] not in done]
     reminders = due_reminders(conn)
-    if not new and not reminders and not problems:
+    # wyniki ocenionych przetargów (kalibracja wyceny, obraz konkurencji) – raz na przetarg
+    results = [(row, res) for row, res in market.outcomes(conn)
+               if res and f"WYNIK/{row['notice_number']}" not in done]
+    if not new and not reminders and not results and not problems:
         print("Brak nowych przetargów i przypomnień.")
         return
     parts = []
@@ -498,6 +537,13 @@ def cmd_daily(args, cfg):
     if new:
         parts.append(f"🏗 <b>Nowe przetargi: {len(new)}</b>\nOcena: /przetargi w Claude Code\n\n"
                      + "\n\n".join(notice_card(r) for r in new))
+    if results:
+        parts.append(f"📊 <b>Wyniki ocenionych przetargów: {len(results)}</b>\n\n" + "\n\n".join(
+            f"<b>{html.escape(row['title'][:150])}</b>\n{html.escape(row['org_name'] or '')} · nasza ocena: "
+            f"{row['verdict']}\nWygrał: {html.escape(res['winner'] or res['procedure_result'] or '?')} · "
+            f"{prices.zl(res['price_winner'])} (min {prices.zl(res['price_min'])}, max {prices.zl(res['price_max'])})"
+            f" · ofert {res['offers'] or '?'}"
+            for row, res in results))
     if problems:
         parts.append("⚠️ " + "\n⚠️ ".join(html.escape(p) for p in problems))
     text = "\n\n".join(parts)
@@ -507,10 +553,12 @@ def cmd_daily(args, cfg):
     telegram.send(text)
     now = datetime.now().isoformat(timespec="seconds")
     conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)", [(r["notice_number"], now) for r in new])
+    conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)",
+                     [(f"WYNIK/{row['notice_number']}", now) for row, _ in results])
     conn.executemany("INSERT OR IGNORE INTO reminders VALUES (?, ?, ?)",
                      [(r["notice_number"], stage, now) for r, stage in reminders])
     conn.commit()
-    print(f"Wysłano: {len(new)} nowych, {len(reminders)} przypomnień")
+    print(f"Wysłano: {len(new)} nowych, {len(reminders)} przypomnień, {len(results)} wyników")
 
 
 def due_reminders(conn) -> list[tuple[dict, str]]:
@@ -584,6 +632,12 @@ def main():
     rv.add_argument("verdict", choices=["tak", "moze", "nie"])
     rv.add_argument("note", nargs="?", default="")
 
+    pa = sub.add_parser("partners", help="kto wygrywa przetargi projektowe w regionie (partnerzy)")
+    pa.add_argument("--province", action="append", help="np. PL12 (można kilka razy); domyślnie PL12")
+    pa.add_argument("--top", type=int, default=25)
+
+    sub.add_parser("outcomes", help="wyniki ocenionych przetargów: kto wygrał i za ile")
+
     d = sub.add_parser("daily", help="automat: pobierz, Jev, powiadom na Telegram o nowych")
     d.add_argument("--dry-run", action="store_true", help="tylko pokaż wiadomość, nie wysyłaj")
 
@@ -593,7 +647,7 @@ def main():
     commands = {
         "fetch": cmd_fetch, "rescore": cmd_rescore, "jev": cmd_jev, "list": cmd_list, "show": cmd_show,
         "similar": cmd_similar, "prices": cmd_prices, "report": cmd_report, "review": cmd_review,
-        "daily": cmd_daily,
+        "daily": cmd_daily, "partners": cmd_partners, "outcomes": cmd_outcomes,
     }
     commands[args.cmd](args, cfg)
 

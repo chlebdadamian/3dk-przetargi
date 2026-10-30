@@ -14,6 +14,9 @@ python -m przetargi similar <nr>                   # ceny podobnych rozstrzygni�
 python -m przetargi prices <słowa> [--province PL12]
 python -m przetargi report [--all]                 # data/raporty/kandydaci-DATA.md do oceny
 python -m przetargi review <nr> tak|moze|nie "uzasadnienie"
+python -m przetargi partners [--province PL12]       # kto wygrywa przetargi projektowe (partnerzy)
+python -m przetargi outcomes                       # wyniki ocenionych przetargów
+python -m przetargi daily [--dry-run]              # automat: źródła + Jev + Telegram
 ```
 
 `<nr>` może być fragmentem numeru, np. `00506260`.
