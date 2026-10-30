@@ -89,7 +89,10 @@ COLUMNS = [
 
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # kilka procesów naraz (automat, pobieranie w tle, raport): czekamy na blokadę zamiast padać,
+    # a WAL pozwala czytać w trakcie zapisu
+    conn = sqlite3.connect(path, timeout=120)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(notices)")}

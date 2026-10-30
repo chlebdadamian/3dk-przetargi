@@ -180,6 +180,13 @@ ugspytkowice = "Spytkowice"
 [fetch.rss]
 # Kanały RSS serwisów przetargowych gmin: adres -> zamawiający i miejscowość.
 "https://przetargi.myslenice.pl/feed/" = { org = "Gmina Myślenice", city = "Myślenice" }
+"https://imeriweb.um.krakow.pl/app-pub-szp/rss" = { org = "Urząd Miasta Krakowa", city = "Kraków" }
+"https://www.bip.krakow.pl/feeds/rss/komunikatynowe/238999" = { org = "Miejskie jednostki Krakowa (do 170 tys. zł)", city = "Kraków" }
+"https://www.bip.krakow.pl/feeds/rss/komunikatynowe/239005" = { org = "Miejskie jednostki Krakowa (powyżej 170 tys. zł)", city = "Kraków" }
+
+[fetch.marketplanet]
+# Wyszukiwarka oneplace.marketplanet.pl (ezamawiajacy.pl): każda fraza = do 3 stron po 12 wyników.
+queries = ["dokumentacji projektowej", "projekt", "koncepcji", "nadzór autorski"]
 
 [fetch.pz.organizers]
 # Profile zamawiających (https://platformazakupowa.pl/pn/{nazwa}) – każdy = 1 zapytanie (15 min).

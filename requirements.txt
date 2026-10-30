@@ -1,1 +1,2 @@
 pypdf>=6
+truststore>=0.9

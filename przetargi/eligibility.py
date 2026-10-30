@@ -5,6 +5,7 @@ sformułowany warunek może umknąć. Brak danych w karcie = „nie wiadomo”, 
 """
 
 import re
+import sys
 import tomllib
 from datetime import date
 from pathlib import Path
@@ -13,10 +14,15 @@ WORDS = {"jedn": 1, "dw": 2, "trz": 3, "czter": 4, "pięć": 5, "pięciu": 5, "d
 
 
 def load(path: Path) -> dict:
+    """Karta jest edytowana ręcznie – błąd w pliku nie może zatrzymać raportu ani automatu."""
     if not path.exists():
         return {}
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        print(f"! {path.name}: błąd w pliku ({e}) – karta pominięta, popraw ją", file=sys.stderr)
+        return {}
 
 
 def _num(s: str) -> float:
