@@ -5,8 +5,9 @@
 days_back = 3
 # Ile dni historii ogłoszeń o wyniku trzymać do porównań cen.
 history_days = 365
-# Przerwa między zapytaniami (s). WAF e-Zamówień blokuje IP po zbyt wielu szybkich zapytaniach.
-request_delay = 5
+# Przerwa między zapytaniami (s). WAF e-Zamówień blokuje IP po ok. 13 zapytaniach w kilka minut
+# (niezależnie od przerwy 1–5 s), więc codzienne ~27 zapytań rozkładamy na ~30 min.
+request_delay = 60
 
 # Kody CPV, o które pytamy API BZP (filtr po stronie serwera, dokładny kod).
 cpv_codes = [

@@ -18,7 +18,7 @@ DB_PATH = ROOT / "data" / "przetargi.db"
 PORTFOLIO = ROOT / "portfolio.toml"  # karta doświadczenia (poza gitem)
 REPORTS = ROOT / "data" / "raporty"
 # ogłoszenia, na które można złożyć ofertę
-OPEN_TYPES = ("ContractNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE, rss.NOTICE_TYPE,
+OPEN_TYPES = ("ContractNotice", "CompetitionNotice", bk.NOTICE_TYPE, pz.NOTICE_TYPE, sarp.NOTICE_TYPE, bip.NOTICE_TYPE, rss.NOTICE_TYPE,
               marketplanet.NOTICE_TYPE)
 # źródła bez terminu w danych: aktualne tyle dni od publikacji
 NO_DEADLINE_DAYS = {sarp.NOTICE_TYPE: 60, bip.NOTICE_TYPE: bip.OPEN_DAYS, rss.NOTICE_TYPE: rss.OPEN_DAYS}
@@ -248,6 +248,8 @@ def cmd_fetch(args, cfg):
         ("ContractNotice", cfg["fetch"]["cpv_codes"], windows(today - timedelta(days=days), today)),
         ("TenderResultNotice", cfg["fetch"].get("result_cpv_codes", cfg["fetch"]["cpv_codes"]),
          windows(today - timedelta(days=result_days), today)),
+        # konkursy (projektowe i inne): kilka w miesiącu w całej Polsce – jedno zapytanie bez CPV
+        ("CompetitionNotice", [bzp.ANY_CPV], windows(today - timedelta(days=days), today)),
     ]
     seen, new_matches = set(), bk_matches
     try:
@@ -283,7 +285,7 @@ def cmd_fetch(args, cfg):
                         seen.add(item["noticeNumber"])
                         row = bzp.normalize(item)
                         score_row(row, cfg)
-                        if db.upsert(conn, row) and row["matched"] and notice_type == "ContractNotice":
+                        if db.upsert(conn, row) and row["matched"] and notice_type in ("ContractNotice", "CompetitionNotice"):
                             new_matches.append(row)
                     if w_to < today:
                         conn.execute("INSERT OR IGNORE INTO fetch_log VALUES (?, ?, ?, ?)", key)

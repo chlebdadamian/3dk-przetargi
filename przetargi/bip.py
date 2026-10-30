@@ -31,7 +31,7 @@ CLOSED_RE = re.compile(r"wybor|wybór|wynik|uniewa", re.I)
 # załączniki bez treści merytorycznej
 SKIP_FILE_RE = re.compile(r"rodo|klauzul|formularz|oświadcz|oswiadcz|wzór|wzor|projekt umowy|wynik|wybor|wybór", re.I)
 # gminy często dopisują wynik do treści tego samego artykułu
-CLOSED_TEXT_RE = re.compile(r"informacja o wyniku|informacja o wyborze|wybrano ofert|unieważni", re.I)
+CLOSED_TEXT_RE = re.compile(r"informacja o wyniku|informacja o wyborze|wybrano ofert|unieważni|z wolnej ręki", re.I)
 
 
 def _get(path: str):

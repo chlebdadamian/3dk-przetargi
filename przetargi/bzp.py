@@ -12,6 +12,7 @@ from html import unescape
 API_URL = "https://ezamowienia.gov.pl/mo-board/api/v1/notice"
 PAGE_SIZE = 500  # API ignoruje PageNumber, więc przy pełnej stronie dzielimy okno dat
 USER_AGENT = "przetargi-monitor/0.1"  # WAF blokuje domyślny UA urllib i podszywanie się pod przeglądarkę
+ANY_CPV = "*"  # bez filtra CPV (konkursy: jest ich mało, filtrujemy u siebie)
 REQUEST_DELAY = 5.0  # sekundy między zapytaniami; WAF ma limit, nadpisywane z config.toml
 
 
@@ -38,9 +39,9 @@ def _get(params: dict) -> list[dict]:
 
 def fetch(notice_type: str, day_from: date, day_to: date, cpv: str) -> list[dict]:
     """Pobiera ogłoszenia danego typu i kodu CPV z zakresu dni (włącznie)."""
+    params = {"NoticeType": notice_type, "CpvCode": cpv} if cpv != ANY_CPV else {"NoticeType": notice_type}
     items = _get({
-        "NoticeType": notice_type,
-        "CpvCode": cpv,
+        **params,
         "PublicationDateFrom": f"{day_from.isoformat()}T00:00:00",
         "PublicationDateTo": f"{day_to.isoformat()}T23:59:59",
         "PageSize": PAGE_SIZE,

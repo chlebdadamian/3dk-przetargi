@@ -39,7 +39,7 @@ $Weekdays = @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
 Add-Task "pz" "fetch --source pz" (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "05:30") -Hours 2
 
 # BIP, Baza Konkurencyjności, SARP, BZP + Jev + Telegram: rano i po południu (BZP publikuje w ciągu dnia)
-Add-Task "daily" "daily" @((New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "07:30"),
+Add-Task "daily" "daily" -Hours 2 -Triggers @((New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "07:30"),
     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "15:30"))
 
 Write-Output "Gotowe. Logi: $Root\data\<komenda>.log"
