@@ -102,6 +102,81 @@ uglipinki = "Lipinki"
 umbiecz = "Biecz"
 ugnowytarg = "Nowy Targ"
 
+# Tarnowskie, Podhale, zachód Małopolski (dodane 2026-10-30)
+umtarnow = "Tarnów"
+sptarnow = "Tarnów"
+ugwierzchoslawice = "Wierzchosławice"
+ugskrzyszow = "Skrzyszów"
+umwzabno = "Żabno"
+umtuchow = "Tuchów"
+ugciezkowice = "Ciężkowice"
+ugplesna = "Pleśna"
+uglisiagora = "Lisia Góra"
+ugrzepiennikstrzyzewski = "Rzepiennik Strzyżewski"
+uggromnik = "Gromnik"
+ugszerzyny = "Szerzyny"
+spbrzesko = "Brzesko"
+ugborzecin = "Borzęcin"
+uggnojnik = "Gnojnik"
+ugiwkowa = "Iwkowa"
+ugszczurowa = "Szczurowa"
+umdabrowatarnowska = "Dąbrowa Tarnowska"
+spdabrowatarnowska = "Dąbrowa Tarnowska"
+uggreboszow = "Gręboszów"
+ugboleslaw = "Bolesław"
+ugmedrzechow = "Mędrzechów"
+ugolesno = "Olesno"
+umigszczucin = "Szczucin"
+ugradgoszcz = "Radgoszcz"
+spzakopane = "Zakopane"
+ugkoscielisko = "Kościelisko"
+ugbialydunajec = "Biały Dunajec"
+ugporonin = "Poronin"
+ugbukowinatatrzanska = "Bukowina Tatrzańska"
+umigszczawnica = "Szczawnica"
+ugczarnydunajec = "Czarny Dunajec"
+ugczorsztyn = "Czorsztyn"
+ugjablonka = "Jabłonka"
+uglapszenizne = "Łapsze Niżne"
+ugszaflary = "Szaflary"
+ugkroscienkonaddunajcem = "Krościenko nad Dunajcem"
+ugochotnicadolna = "Ochotnica Dolna"
+ugspytkowice1 = "Spytkowice"
+umwadowice = "Wadowice"
+spwadowice = "Wadowice"
+umandrychow = "Andrychów"
+ugmucharz = "Mucharz"
+ugtomice = "Tomice"
+ugstryszow = "Stryszów"
+uglanckorona = "Lanckorona"
+ugwieprz = "Wieprz"
+ugoswiecim = "Oświęcim"
+ugbrzeszcze = "Brzeszcze"
+ugkety = "Kęty"
+umchelmek = "Chełmek"
+ugprzeciszow = "Przeciszów"
+ugosiek = "Osiek"
+umzator = "Zator"
+umchrzanow = "Chrzanów"
+spchrzanow = "Chrzanów"
+umtrzebinia = "Trzebinia"
+umlibiaz = "Libiąż"
+umalwernia = "Alwernia"
+umigolkusz = "Olkusz"
+spolkusz = "Olkusz"
+umbukowno = "Bukowno"
+ugklucze = "Klucze"
+umigwolbrom = "Wolbrom"
+umsuchabeskidzka = "Sucha Beskidzka"
+ugzawoja = "Zawoja"
+ugbystrasidzina = "Bystra-Sidzina"
+ugbudzow = "Budzów"
+ugstryszawa = "Stryszawa"
+ugzembrzyce = "Zembrzyce"
+ugjordanow = "Jordanów"
+umjordanow = "Jordanów"
+ugspytkowice = "Spytkowice"
+
 [fetch.pz.organizers]
 # Profile zamawiających (https://platformazakupowa.pl/pn/{nazwa}) – każdy = 1 zapytanie (15 min).
 nowysacz = { name = "Urząd Miasta Nowego Sącza", city = "Nowy Sącz" }
@@ -166,6 +241,14 @@ cities = [
   "Tarnów", "Brzesko", "Ciężkowice", "Zakliczyn",
   "Łabowa", "Dobra", "Jodłownik", "Kamienica", "Lipnica Murowana", "Czernichów", "Michałowice",
   "Pcim", "Tokarnia", "Moszczenica", "Sękowa", "Ropa", "Uście Gorlickie", "Lipinki", "Biecz",
+  "Alwernia",  "Andrychów",  "Biały Dunajec",  "Bolesław",  "Borzęcin",  "Brzeszcze",  "Budzów",  "Bukowina Tatrzańska",
+  "Bukowno",  "Bystra-Sidzina",  "Chełmek",  "Chrzanów",  "Czarny Dunajec",  "Czorsztyn",  "Dąbrowa Tarnowska",  "Gnojnik",
+  "Gromnik",  "Gręboszów",  "Iwkowa",  "Jabłonka",  "Jordanów",  "Klucze",  "Kościelisko",  "Krościenko nad Dunajcem",
+  "Kęty",  "Lanckorona",  "Libiąż",  "Lisia Góra",  "Mucharz",  "Mędrzechów",  "Ochotnica Dolna",  "Olesno",
+  "Olkusz",  "Osiek",  "Oświęcim",  "Pleśna",  "Poronin",  "Przeciszów",  "Radgoszcz",  "Rzepiennik Strzyżewski",
+  "Skrzyszów",  "Spytkowice",  "Stryszawa",  "Stryszów",  "Sucha Beskidzka",  "Szaflary",  "Szczucin",  "Szczurowa",
+  "Szerzyny",  "Tomice",  "Trzebinia",  "Tuchów",  "Wadowice",  "Wieprz",  "Wierzchosławice",  "Wolbrom",
+  "Zator",  "Zawoja",  "Zembrzyce",  "Łapsze Niżne",  "Żabno",
 ]
 # Dla źródeł bez lokalizacji (platformazakupowa): fragmenty nazw powiatów w nazwie zamawiającego.
 org_words = [
@@ -178,7 +261,18 @@ org_words = [
   "kraków", "krakow", "wielicz", "niepołomic", "skawin", "myślenic", "dobczyc", "zabierzów",
   "zabierzow", "liszk", "mogilan", "czernichów", "kocmyrzów", "gdów", "kłaj", "siepraw",
   "świątnik", "pcim", "tokarni", "bochni", "zakopan", "nowy targ", "nowego targu", "szczawnic",
-  "zielonk", "wieliczk", "tarnow",
+  "zielonk", "wieliczk",
+  # Tarnowskie, Podhale, zachód Małopolski
+  "tarnow",  "tarnów",  "wierzchosław",  "skrzyszów",  "żabn",  "tuchow",  "tuchów",  "ciężkowic",
+  "pleśn",  "lisia gór",  "rzepiennik",  "gromnik",  "szerzyn",  "brzesk",  "borzęcin",  "gnojnik",
+  "iwkow",  "szczurow",  "dąbrowa tarnowsk", "dąbrowie tarnowsk", "dąbrowsk",  "gręboszów",  "mędrzechów",  "medrzechów",    "szczucin",
+  "radgoszcz",  "zakopan",  "tatrzań",  "kościelisk",  "biały dunajec",  "białego dunajca",  "poronin",  "bukowin",
+  "szczawnic",  "czarny dunajec",  "czarnego dunajca",  "czorsztyn",  "jabłonk",  "łapsz",  "szaflar",  "krościenk",
+  "ochotnic",  "nowotarsk",  "rabk",  "wadowic",  "andrychów",  "andrychow",  "mucharz",  "gmina tomice", "w tomicach",
+  "stryszów",  "lanckoron",  "wieprz",  "oświęcim",  "brzeszcz",  "kęty", "kętach",  "chełmk",  "przeciszów",
+  "gmina osiek", "w osieku",  "zator",  "chrzanów",  "chrzanow",  "trzebini",  "libiąż",  "alwerni",  "olkusz",
+  "bukown",  "gmina klucze", "w kluczach",  "wolbrom",  "suchej beskidzk",  "sucha beskidzk",  "zawoj",  "bystra-sidzin", "bystrej",  "budzów",
+  "stryszaw",  "zembrzyc",  "jordanów",  "jordanow",  "spytkowic",  "kalwari",  "maków podhalań",  "makowa podhalań",
 ]
 
 # Punkty za słowa w przedmiocie zamówienia (każda grupa liczy się raz).

@@ -26,6 +26,8 @@ ARTICLES_PER_SECTION = 20
 SECTION_RE = re.compile(r"zapytani|zamówieni|zamowieni|przetarg", re.I)
 SKIP_RE = re.compile(r"wynik|zawarci|plan|nabór|nabor|zgromadz|platforma|archiw|rejestr|sprawozd|unieważ", re.I)
 CLOSED_RE = re.compile(r"wybor|wybór|wynik|uniewa", re.I)
+# gminy często dopisują wynik do treści tego samego artykułu
+CLOSED_TEXT_RE = re.compile(r"informacja o wyniku|informacja o wyborze|wybrano ofert|unieważni", re.I)
 
 
 def _get(path: str):
@@ -98,5 +100,6 @@ def add_details(r: dict) -> None:
         "opis": _clean(art.get("content")),
         "zalaczniki": ", ".join(files),
     }, ensure_ascii=False)
-    if any(CLOSED_RE.search(f) for f in files):
-        r["procedure_result"] = "rozstrzygnięte (załącznik o wyborze/wyniku/unieważnieniu)"
+    content = _clean(art.get("content"))
+    if any(CLOSED_RE.search(f) for f in files) or CLOSED_TEXT_RE.search(content):
+        r["procedure_result"] = "rozstrzygnięte (informacja o wyborze/wyniku/unieważnieniu)"
