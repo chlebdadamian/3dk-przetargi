@@ -1,6 +1,7 @@
 """CLI: python -m przetargi fetch | rescore | jev | list | show | similar | prices | report | review."""
 
 import argparse
+import html
 import os
 import re
 import sys
@@ -9,7 +10,7 @@ import tomllib
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bip, bk, bzp, db, filters, jev, notice, prices, pz, sarp
+from . import bip, bk, bzp, db, filters, jev, notice, prices, pz, sarp, telegram
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "przetargi.db"
@@ -432,6 +433,60 @@ def cmd_jev(args, cfg):
         print(f"  {verdict}: {n}")
 
 
+def notice_card(row) -> str:
+    """Karta przetargu do Telegrama (HTML); każda linia zamyka swoje tagi."""
+    e = html.escape
+    lines = [f"<b>[{row['score']} pkt] {e(row['title'][:200])}</b>",
+             e(f"{row['org_name'] or ''}{', ' + row['org_city'] if row['org_city'] else ''}"),
+             f"Termin: {e(local_time(row['deadline']))}" if row["deadline"] else "Termin: w ogłoszeniu"]
+    if row.get("fit"):
+        lines.append(f"<i>{e(jev_line(row))}</i>")
+    lines.append(f'<a href="{e(notice.url(row))}">{e(row["notice_number"])}</a>')
+    return "\n".join(lines)
+
+
+def cmd_daily(args, cfg):
+    """Automat: pobierz źródła (bez platformazakupowa – osobne zadanie), Jev, powiadomienie o nowych."""
+    conn = db.connect(DB_PATH)
+    problems = []
+    for name, fn in (("BIP", fetch_bip), ("Baza Konkurencyjności", fetch_bk), ("SARP", fetch_sarp)):
+        try:
+            fn(conn, cfg)
+        except (OSError, ValueError, KeyError) as e:
+            problems.append(f"{name}: {e}")
+    try:
+        cmd_fetch(argparse.Namespace(source="bzp", days=None, history=False, wait=None), cfg)
+    except SystemExit:
+        problems.append("BZP: blokada WAF – dokończy się przy następnym uruchomieniu")
+    except (OSError, ValueError) as e:
+        problems.append(f"BZP: {e}")
+    mark_duplicates(conn)
+    if os.environ.get("JEV_API_KEY"):
+        try:
+            jev.assess_pending(conn)
+        except OSError as e:
+            problems.append(f"Jev: {e}")
+
+    done = {r[0] for r in conn.execute("SELECT notice_number FROM notified")}
+    new = [r for r in open_candidates(conn, include_reviewed=False) if r["notice_number"] not in done]
+    if not new and not problems:
+        print("Brak nowych przetargów.")
+        return
+    text = f"🏗 <b>Nowe przetargi: {len(new)}</b>\nOcena: /przetargi w Claude Code"
+    if new:
+        text += "\n\n" + "\n\n".join(notice_card(r) for r in new)
+    if problems:
+        text += "\n\n⚠️ " + "\n⚠️ ".join(html.escape(p) for p in problems)
+    if args.dry_run or not telegram.configured():
+        print(text if args.dry_run else "Brak TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID w .env:\n" + text)
+        return
+    telegram.send(text)
+    now = datetime.now().isoformat(timespec="seconds")
+    conn.executemany("INSERT OR IGNORE INTO notified VALUES (?, ?)", [(r["notice_number"], now) for r in new])
+    conn.commit()
+    print(f"Wysłano powiadomienie: {len(new)} przetargów")
+
+
 def cmd_review(args, cfg):
     conn = db.connect(DB_PATH)
     row = find_notice(conn, args.ref)
@@ -487,12 +542,16 @@ def main():
     rv.add_argument("verdict", choices=["tak", "moze", "nie"])
     rv.add_argument("note", nargs="?", default="")
 
+    d = sub.add_parser("daily", help="automat: pobierz, Jev, powiadom na Telegram o nowych")
+    d.add_argument("--dry-run", action="store_true", help="tylko pokaż wiadomość, nie wysyłaj")
+
     args = p.parse_args()
     load_env(ROOT / ".env")
     cfg = load_config(args.config)
     commands = {
         "fetch": cmd_fetch, "rescore": cmd_rescore, "jev": cmd_jev, "list": cmd_list, "show": cmd_show,
         "similar": cmd_similar, "prices": cmd_prices, "report": cmd_report, "review": cmd_review,
+        "daily": cmd_daily,
     }
     commands[args.cmd](args, cfg)
 

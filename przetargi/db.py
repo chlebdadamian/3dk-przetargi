@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS jev (
     assessed_at   TEXT
 );
 
+-- Przetargi, o których już poszło powiadomienie (żeby nie powtarzać)
+CREATE TABLE IF NOT EXISTS notified (
+    notice_number TEXT PRIMARY KEY,
+    notified_at   TEXT
+);
+
 -- Ocena przetargu (robiona w Claude Code): tak / moze / nie
 CREATE TABLE IF NOT EXISTS reviews (
     notice_number TEXT PRIMARY KEY,
